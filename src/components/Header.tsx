@@ -14,6 +14,7 @@ export const Header: React.FC<HeaderProps> = ({ currentView, setCurrentView }) =
     { id: 'store', label: 'Store' },
     { id: 'config', label: 'Config' },
     { id: 'logs', label: 'Logs' },
+    { id: 'discovery', label: 'Discover' },
   ];
 
   return (

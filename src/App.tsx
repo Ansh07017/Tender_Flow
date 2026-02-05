@@ -4,6 +4,7 @@ import { LogScreen } from './components/LogScreen';
 import { ConfigScreen } from './components/ConfigScreen';
 import { AnalysisScreen } from './components/AnalysisScreen';
 import { ProcessingScreen } from './components/ProcessingScreen';
+import { DiscoveryScreen } from './components/DiscoveryScreen';
 import { Header } from './components/Header';
 import { StoreScreen } from './components/StoreScreen';
 import { productInventory as initialInventory } from '../data/storeData';
@@ -187,6 +188,9 @@ const App: React.FC = () => {
 
       case 'store':
       return <StoreScreen inventory={inventory} setInventory={setInventory} />;
+
+      case 'discovery':
+  return <DiscoveryScreen inventory={inventory} onProcessDiscovery={(url) => addRfp({ source: 'URL', content: url, fileName: url })} />;
 
       case 'analysis':
         return selectedRfp ? (

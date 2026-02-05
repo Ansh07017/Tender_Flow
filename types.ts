@@ -245,4 +245,5 @@ export type View =
   | 'config'
   | 'logs'
   | 'processing'
+  | 'discovery'
   | 'analysis';
