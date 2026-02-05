@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Rfp, LogEntry, AgentName } from '../../types';
 
 /* =========================
@@ -124,47 +124,6 @@ const AgentStatusTracker: React.FC<{ rfp: Rfp }> = ({ rfp }) => (
 );
 
 /* =========================
-   LOG VIEWER (UNCHANGED)
-========================= */
-
-const LogViewer: React.FC<{ logs: LogEntry[] }> = ({ logs }) => {
-  const endRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    endRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [logs]);
-
-  return (
-    <div className="bg-base-100 rounded-lg p-4 border border-base-300 h-full flex flex-col font-mono">
-      <h3 className="text-md font-semibold mb-2 text-ink-700">
-        Live Execution Log
-      </h3>
-      <div className="flex-grow overflow-y-auto text-xs pr-2 space-y-1">
-        {logs.map((log, idx) => (
-          <div key={idx} className="flex gap-3">
-            <div className="text-ink-400 w-20 shrink-0">
-              {log.timestamp.toLocaleTimeString()}
-            </div>
-            <div className="w-32 shrink-0 font-semibold text-cyan-600">
-              [{log.agent}]
-            </div>
-            <div className="text-ink-600 whitespace-pre-wrap">
-              {log.message}
-              {log.data && (
-                <pre className="mt-1 p-2 bg-base-200 rounded text-ink-700">
-                  {log.data}
-                </pre>
-              )}
-            </div>
-          </div>
-        ))}
-        <div ref={endRef} />
-      </div>
-    </div>
-  );
-};
-
-/* =========================
    PARSED DATA PREVIEW
 ========================= */
 
@@ -178,7 +137,7 @@ const ParsedDataPreview: React.FC<{ rfp: Rfp }> = ({ rfp }) => {
         📄 Parsed RFP Snapshot
       </h3>
 
-      <pre className="max-h-64 overflow-auto text-xs bg-base-200 p-3 rounded">
+      <pre className="flex-grow overflow-auto text-xs bg-base-200 p-3 rounded h-full">
         {JSON.stringify(parsed, null, 2)}
       </pre>
     </div>
@@ -189,6 +148,7 @@ const ParsedDataPreview: React.FC<{ rfp: Rfp }> = ({ rfp }) => {
    MAIN SCREEN
 ========================= */
 
+// ProcessingScreen.tsx - MAIN SCREEN section
 interface ProcessingScreenProps {
   rfp: Rfp;
   logs: LogEntry[];
@@ -199,7 +159,6 @@ interface ProcessingScreenProps {
 
 export const ProcessingScreen: React.FC<ProcessingScreenProps> = ({
   rfp,
-  logs,
   onViewResults,
   onBack,
   processingStartTime,
@@ -216,9 +175,7 @@ export const ProcessingScreen: React.FC<ProcessingScreenProps> = ({
 
     const timer = setInterval(() => {
       setElapsed(
-        Math.round(
-          (Date.now() - processingStartTime.getTime()) / 1000
-        )
+        Math.round((Date.now() - processingStartTime.getTime()) / 1000)
       );
     }, 1000);
 
@@ -227,6 +184,7 @@ export const ProcessingScreen: React.FC<ProcessingScreenProps> = ({
 
   return (
     <div className="space-y-4">
+      {/* Header with Timer */}
       <div className="flex justify-between items-center">
         <h2 className="text-xl font-bold">
           Processing RFP:{' '}
@@ -236,25 +194,40 @@ export const ProcessingScreen: React.FC<ProcessingScreenProps> = ({
           <p className="text-xs uppercase tracking-wider text-ink-400">
             Time Elapsed
           </p>
-          <p className="text-2xl font-bold text-ink-700">
-            {elapsed}s
-          </p>
+          <p className="text-2xl font-bold text-ink-700">{elapsed}s</p>
         </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 h-[70vh]">
-        <AgentStatusTracker rfp={rfp} />
-        <div className="lg:col-span-2 flex flex-col gap-4">
-          <LogViewer logs={logs} />
-          <ParsedDataPreview rfp={rfp} />
+      {/* Simplified Content Grid */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-stretch">
+        {/* Left Column: Pipeline Tracker */}
+        <div className="lg:col-span-1">
+          <AgentStatusTracker rfp={rfp} />
+        </div>
+
+        {/* Right Column: Parsed Snapshot ONLY */}
+        <div className="lg:col-span-2 h-full">
+           {/* If data isn't ready, show a cleaner placeholder */}
+           {!rfp.agentOutputs?.parsedData ? (
+             <div className="bg-base-200 border border-base-300 rounded-lg p-10 h-full flex flex-col items-center justify-center text-center">
+                <div className="animate-pulse flex space-x-4 mb-4">
+                  <div className="rounded-full bg-base-300 h-12 w-12"></div>
+                </div>
+                <h3 className="font-bold text-ink-700">Awaiting Agent Extraction...</h3>
+                <p className="text-sm text-ink-500">The Parsing Engine is reading document structures.</p>
+             </div>
+           ) : (
+             <ParsedDataPreview rfp={rfp} />
+           )}
         </div>
       </div>
 
+      {/* Action Buttons */}
       <div className="pt-4 flex justify-center">
         {rfp.status === 'Complete' && (
           <button
             onClick={onViewResults}
-            className="px-6 py-2 bg-success-700 text-white font-bold rounded-lg"
+            className="px-6 py-2 bg-success-700 text-white font-bold rounded-lg hover:bg-success-800 transition shadow-md"
           >
             View Analysis Results
           </button>
@@ -262,22 +235,16 @@ export const ProcessingScreen: React.FC<ProcessingScreenProps> = ({
 
         {rfp.status === 'Error' && (
           <div className="text-center">
-            <p className="text-error-700 font-semibold">
-              An error occurred during processing.
-            </p>
-            <button
-              onClick={onBack}
-              className="mt-2 px-4 py-2 bg-error-700 text-white rounded-lg"
-            >
+            <p className="text-error-700 font-semibold">Processing failed.</p>
+            <button onClick={onBack} className="mt-2 px-4 py-2 bg-error-700 text-white rounded-lg">
               Back to RFP List
             </button>
           </div>
         )}
 
-        {(rfp.status === 'Parsing' ||
-          rfp.status === 'Processing') && (
-          <p className="text-ink-500 font-semibold">
-            Please wait while agents complete their tasks…
+        {(rfp.status === 'Parsing' || rfp.status === 'Processing') && (
+          <p className="text-ink-500 font-semibold animate-pulse">
+            Worker agents are coordinating...
           </p>
         )}
       </div>

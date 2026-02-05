@@ -246,4 +246,3 @@ export type View =
   | 'logs'
   | 'processing'
   | 'analysis';
-

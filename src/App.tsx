@@ -4,6 +4,9 @@ import { LogScreen } from './components/LogScreen';
 import { ConfigScreen } from './components/ConfigScreen';
 import { AnalysisScreen } from './components/AnalysisScreen';
 import { ProcessingScreen } from './components/ProcessingScreen';
+import { Header } from './components/Header';
+import { StoreScreen } from './components/StoreScreen';
+import { productInventory as initialInventory } from '../data/storeData';
 
 import type { View } from '../types';
 import {
@@ -46,7 +49,7 @@ const App: React.FC = () => {
   const [selectedRfpId, setSelectedRfpId] = useState<string | null>(null);
   const [config, setConfig] = useState<AppConfig>(initialConfig);
   const [processingStartTime, setProcessingStartTime] = useState<Date | null>(null);
-
+  const [inventory, setInventory] = useState(initialInventory);
   /* -------------------- Logging -------------------- */
   const addLog = useCallback(
     (agent: AgentName | 'SYSTEM', message: string, data?: any) => {
@@ -102,7 +105,7 @@ const App: React.FC = () => {
 
       const backendResult = await apiService.parseRFP(rfp.rawDocument);
 
-      //addLog('PARSING_ENGINE', 'Backend processing completed', backendResult);
+      addLog('PARSING_ENGINE', 'Backend processing completed', backendResult);
 
       updateRfpState(rfpId, {
         status: 'Complete',
@@ -182,6 +185,9 @@ const App: React.FC = () => {
       case 'logs':
         return <LogScreen logs={logs} />;
 
+      case 'store':
+      return <StoreScreen inventory={inventory} setInventory={setInventory} />;
+
       case 'analysis':
         return selectedRfp ? (
           <AnalysisScreen rfp={selectedRfp} onBack={handleBackToList} />
@@ -211,7 +217,11 @@ const App: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen font-sans">
+    <div className="min-h-screen font-sans bg-base-100">
+     <Header 
+        currentView={currentView}
+        setCurrentView={setCurrentView} 
+      />
       <main className="p-4 md:p-6 lg:p-8">{renderContent()}</main>
     </div>
   );

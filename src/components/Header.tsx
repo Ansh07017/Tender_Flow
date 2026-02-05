@@ -1,8 +1,7 @@
 
 import React from 'react';
 import { Logo } from './Logo';
-
-type View = 'rfps' | 'store' | 'config' | 'logs';
+import { View } from '../../types';
 
 interface HeaderProps {
   currentView: View;
