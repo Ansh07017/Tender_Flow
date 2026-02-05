@@ -1,5 +1,5 @@
 
-import { SKU } from '../../types';
+import { SKU } from '../types';
 
 export const productInventory: SKU[] = [
   // --- Decorative Paints: Interior Emulsions ---

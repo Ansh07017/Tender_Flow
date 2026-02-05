@@ -1,5 +1,5 @@
 
-import { Rfp } from '../../types';
+import { Rfp } from '../types';
 
 const today = new Date();
 const addDays = (date: Date, days: number): Date => {

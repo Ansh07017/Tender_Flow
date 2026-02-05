@@ -2,22 +2,18 @@ import React, { useEffect, useRef, useState } from 'react';
 import { Rfp, LogEntry, AgentName } from '../../types';
 
 /* =========================
-   PIPELINE CONFIG
+   PIPELINE CONFIG (ALIGNED)
 ========================= */
 
 const agentPipeline: AgentName[] = [
-  'EXTRACTOR',
   'PARSING_ENGINE',
-  'SALES_AGENT',
   'TECHNICAL_AGENT',
   'PRICING_AGENT',
   'FINALIZING_AGENT',
 ];
 
 const agentDisplayNames: Record<AgentName, string> = {
-  EXTRACTOR: 'Extracting Text',
   PARSING_ENGINE: 'Parsing Document',
-  SALES_AGENT: 'Eligibility Check',
   TECHNICAL_AGENT: 'Technical Analysis',
   PRICING_AGENT: 'Pricing Analysis',
   FINALIZING_AGENT: 'Finalizing Report',
@@ -32,23 +28,20 @@ type PipelineStatus = 'Pending' | 'In Progress' | 'Complete' | 'Error';
 
 const getAgentStatus = (agent: AgentName, rfp: Rfp): PipelineStatus => {
   const agentIndex = agentPipeline.indexOf(agent);
-  const activeIndex = rfp.activeAgent
-    ? agentPipeline.indexOf(rfp.activeAgent)
-    : -1;
 
   if (rfp.status === 'Error') {
-    if (agentIndex < activeIndex) return 'Complete';
-    if (agentIndex === activeIndex) return 'Error';
-    return 'Pending';
+    return agent === rfp.activeAgent ? 'Error' : 'Pending';
   }
 
   if (rfp.status === 'Complete') {
     return 'Complete';
   }
 
-  if (activeIndex === -1) {
+  if (!rfp.activeAgent) {
     return 'Pending';
   }
+
+  const activeIndex = agentPipeline.indexOf(rfp.activeAgent);
 
   if (agentIndex < activeIndex) return 'Complete';
   if (agentIndex === activeIndex) return 'In Progress';
@@ -71,11 +64,7 @@ const StatusIcon: React.FC<{ status: PipelineStatus }> = ({ status }) => {
     case 'In Progress':
       return (
         <div className="w-6 h-6 rounded-full bg-accent-700 flex items-center justify-center">
-          <svg
-            className="animate-spin h-4 w-4 text-white"
-            viewBox="0 0 24 24"
-            fill="none"
-          >
+          <svg className="animate-spin h-4 w-4 text-white" viewBox="0 0 24 24">
             <circle
               className="opacity-25"
               cx="12"
@@ -122,13 +111,7 @@ const AgentStatusTracker: React.FC<{ rfp: Rfp }> = ({ rfp }) => (
               {!isLast && <div className="w-px h-8 bg-base-300 mt-1" />}
             </div>
             <div>
-              <p
-                className={`font-semibold ${
-                  status === 'In Progress'
-                    ? 'text-accent-700'
-                    : 'text-ink-700'
-                }`}
-              >
+              <p className="font-semibold text-ink-700">
                 {agentDisplayNames[agent]}
               </p>
               <p className="text-sm text-ink-500">{status}</p>
@@ -141,7 +124,7 @@ const AgentStatusTracker: React.FC<{ rfp: Rfp }> = ({ rfp }) => (
 );
 
 /* =========================
-   LOG VIEWER
+   LOG VIEWER (UNCHANGED)
 ========================= */
 
 const LogViewer: React.FC<{ logs: LogEntry[] }> = ({ logs }) => {
@@ -182,18 +165,11 @@ const LogViewer: React.FC<{ logs: LogEntry[] }> = ({ logs }) => {
 };
 
 /* =========================
-   UTIL
+   PARSED DATA PREVIEW
 ========================= */
 
-const formatDuration = (seconds: number) => {
-  if (seconds < 60) return `${seconds}s`;
-  const m = Math.floor(seconds / 60);
-  const s = seconds % 60;
-  return `${m}m ${s}s`;
-};
-
 const ParsedDataPreview: React.FC<{ rfp: Rfp }> = ({ rfp }) => {
-  const parsed = rfp.agentOutputs.parsedData;
+  const parsed = rfp.agentOutputs?.parsedData;
   if (!parsed) return null;
 
   return (
@@ -205,10 +181,6 @@ const ParsedDataPreview: React.FC<{ rfp: Rfp }> = ({ rfp }) => {
       <pre className="max-h-64 overflow-auto text-xs bg-base-200 p-3 rounded">
         {JSON.stringify(parsed, null, 2)}
       </pre>
-
-      <p className="text-xs text-ink-400 mt-2">
-        Live parsed output (read-only)
-      </p>
     </div>
   );
 };
@@ -238,9 +210,7 @@ export const ProcessingScreen: React.FC<ProcessingScreenProps> = ({
     if (!processingStartTime) return;
 
     if (rfp.status === 'Complete' || rfp.status === 'Error') {
-      if (rfp.processingDuration) {
-        setElapsed(rfp.processingDuration);
-      }
+      if (rfp.processingDuration) setElapsed(rfp.processingDuration);
       return;
     }
 
@@ -267,24 +237,18 @@ export const ProcessingScreen: React.FC<ProcessingScreenProps> = ({
             Time Elapsed
           </p>
           <p className="text-2xl font-bold text-ink-700">
-            {formatDuration(elapsed)}
+            {elapsed}s
           </p>
         </div>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 h-[70vh]">
-  <AgentStatusTracker rfp={rfp} />
-
-  <div className="lg:col-span-2 flex flex-col gap-4">
-    <LogViewer logs={logs} />
-
-    {(rfp.status === 'Parsing' ||
-      rfp.status === 'Processing') && (
-      <ParsedDataPreview rfp={rfp} />
-    )}
-  </div>
-</div>
-
+        <AgentStatusTracker rfp={rfp} />
+        <div className="lg:col-span-2 flex flex-col gap-4">
+          <LogViewer logs={logs} />
+          <ParsedDataPreview rfp={rfp} />
+        </div>
+      </div>
 
       <div className="pt-4 flex justify-center">
         {rfp.status === 'Complete' && (
@@ -310,8 +274,7 @@ export const ProcessingScreen: React.FC<ProcessingScreenProps> = ({
           </div>
         )}
 
-        {(rfp.status === 'Extracting' ||
-          rfp.status === 'Parsing' ||
+        {(rfp.status === 'Parsing' ||
           rfp.status === 'Processing') && (
           <p className="text-ink-500 font-semibold">
             Please wait while agents complete their tasks…

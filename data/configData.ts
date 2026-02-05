@@ -1,5 +1,5 @@
 
-import { AppConfig } from '../../types';
+import { AppConfig } from '../types';
 
 export const initialConfig: AppConfig = {
   companyDetails: {
