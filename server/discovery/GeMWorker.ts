@@ -1,5 +1,5 @@
 import puppeteer from 'puppeteer';
-import { SKU, DiscoveryFilters, Tender } from '../../types';
+import { SKU, DiscoveryFilters, Tender, } from '../../types';
 
 export interface GeMBid {
   id: string;
@@ -27,16 +27,17 @@ export class GeMWorker {
   async scrape(category: string): Promise<GeMBid[]> {
     const browser = await puppeteer.launch({ 
       headless: false,
-      args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-blink-features=AutomationControlled']
+      args: ['--no-sandbox', '--disable-setuid-sandbox','--window-size=1920,1080', '--disable-blink-features=AutomationControlled', '--ignore-certificate-errors', '--ignore-certificate-errors-spki-list']
     });
     const page = await browser.newPage();
 
     try {
+      await page.setViewport({ width: 1920, height: 1080 });
       await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36');
       await page.goto('https://bidplus.gem.gov.in/all-bids', { waitUntil: 'networkidle2' });
 
 const searchInput = '#searchBid'; 
-await page.waitForSelector(searchInput, { visible: true, timeout: 15000 });
+await page.waitForSelector(searchInput, { visible: true, timeout: 60000 });
 await page.type(searchInput, category, { delay: 100 });
 
 const searchButton = '#searchBidRA'; 
@@ -94,8 +95,7 @@ bids.forEach(bid => {
 });
 
 const today = new Date();
-today.setHours(0, 0, 0, 0); // Reset time to midnight for local comparison
-
+today.setHours(0, 0, 0, 0);
 // Forward-looking window as per problem statement
 const threeMonthsFromNow = new Date();
 threeMonthsFromNow.setMonth(threeMonthsFromNow.getMonth() + 3);
@@ -130,14 +130,28 @@ return bids.filter(bid => {
   }
 
   private calculateMetrics(bid: GeMBid) {
-    const mockDistance = Math.floor(Math.random() * 1500); 
-
     const matchingSKUs = this.inventory.filter(item => 
-      bid.title.toLowerCase().includes(item.productCategory.toLowerCase())
+      bid.title.toLowerCase().includes(item.productCategory.toLowerCase()) ||
+      bid.category.toLowerCase().includes(item.productSubCategory.toLowerCase())
     );
     
     const matchScore = Math.round((matchingSKUs.length / (this.inventory.length || 1)) * 100);
     const hasInStock = matchingSKUs.some(item => item.availableQuantity > 0);
+
+  const distance = this.filters.manualAvgKms || 0;
+  const baseRate = this.filters.manualRatePerKm || 0;
+const bestSku = this.inventory.find(item => 
+    bid.title.toLowerCase().includes(item.productCategory.toLowerCase())
+  );
+  let effectiveRate = baseRate;
+  if (bestSku?.truckType === 'HEAVY_TRUCK') {
+    effectiveRate = baseRate;
+  } else if (bestSku?.truckType === 'MEDIUM_TRUCK') {
+    effectiveRate = baseRate * 0.7; 
+  } else if (bestSku?.truckType === 'LCV') {
+    effectiveRate = baseRate * 0.4; 
+  }
+  const totalLogisticsCost = distance * effectiveRate;
 
     // Business Logic for Risk Assessment
     let risk: 'Low' | 'Medium' | 'High' = 'High';
@@ -145,9 +159,10 @@ return bids.filter(bid => {
     else if (matchScore > 40) risk = 'Medium';
 
     return { 
-      distance: mockDistance, 
+      distance,
       matchScore: matchScore > 0 ? matchScore : Math.floor(Math.random() * 30) + 10,
       inStock: hasInStock,
+      estimatedLogisticsCost: totalLogisticsCost,
       risk 
     };
   }
@@ -156,11 +171,11 @@ return bids.filter(bid => {
     return rawBids
       .map(bid => {
         const metrics = this.calculateMetrics(bid);
-
+        const shouldBypass = (this.filters as any).bypassFilters === true;
         const qualifiedBid: Tender = {
           ...bid,
           ...metrics,
-          isQualified: (metrics.distance <= this.filters.radius) && 
+          isQualified:shouldBypass ? true: (metrics.distance <= this.filters.manualAvgKms) && 
                        (this.filters.allowEMD || !bid.emdRequired) && 
                        (metrics.matchScore >= this.filters.minMatchThreshold)
         };

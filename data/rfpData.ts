@@ -1,4 +1,3 @@
-
 import { Rfp } from '../types';
 
 const today = new Date();
@@ -8,198 +7,156 @@ const addDays = (date: Date, days: number): Date => {
   return result;
 };
 
-// This content now simulates a government tender for paints.
-export const rfpDoc_CPWD_Exterior = `
+// 1. CPWD - Tubular Street Light Poles (Matches PLB-LGT-TUB-9M-V2)
+export const rfpDoc_CPWD_Poles = `
 Central Public Works Department - Notice Inviting Tender
 
 --- BID DETAILS ---
-Bid Number: CPWD/GGN/2026/B/987654
+Bid Number: GEM/2026/B/987654
 Dated: 02-01-2026
-Bid End Date/Time: 28-01-2026 17:00:00
-Bid Opening Date/Time: 28-01-2026 17:30:00
+Bid End Date/Time: 28-02-2026 17:00:00
 Bid Offer Validity: 180 (Days)
 Type of Bid: Two Packet Bid
 
 --- ORGANIZATION DETAILS ---
-Ministry/State Name: Ministry of Housing and Urban Affairs
-Department Name: Central Public Works Department (CPWD)
-Organisation Name: CPWD, Gurgaon Division
-Office Name: Project Engineer Office, Sector 34, Gurgaon
+Ministry: Ministry of Housing and Urban Affairs
+Department: Central Public Works Department (CPWD)
+Organisation: CPWD, Gurgaon Division
 
 --- ITEM DETAILS ---
-Total Quantity: 1500
-Item Category: Premium Acrylic Exterior Emulsion Paint
-Make: Asian Paints / Berger / Nerolac or equivalent
-Experience Relaxation for MSE: Yes
-Experience Relaxation for Startup: No
-
---- DOCUMENT REQUIREMENTS ---
-Document required from seller: Certificate (IS 15489 Compliance), OEM Authorization Certificate, Past Performance Certificate
-
---- FINANCIAL DETAILS ---
-ePBG Percentage(%): 3.00
-Duration of ePBG required (Months): 12
-Evaluation Method: Item-wise evaluation
-Payment Terms: 100% payment after joint measurement and acceptance of work.
-
---- CONSIGNEE DETAILS ---
-Consignee/Reporting Officer: Project Director, CPWD
-Address: CPWD Project Site, DLF Cyber City Complex, Phase III, Gurgaon, Haryana-122002
-PIN: 122002
-Quantity: 1500 Litres
-Delivery Days: 45
+Total Quantity: 100
+Item Category: Lighting Pole or Post and Hardware - Tubular Street Light Poles (V2) (Q3)
+Make: Polycab / Havells / Finolex or equivalent
 
 --- TECHNICAL SPECIFICATIONS ---
-- Product: Apex Ultima Protek or Technically Equivalent
-- Finish: Rich Matt
-- Base: Water-based
-- Required Coverage: Minimum 8 SqM per Litre for two coats
-- Durability: Minimum 10 years warranty for paint film integrity
-- Standard Compliance: Must comply with IS 15489 for exterior paints.
-- Application Area: Exterior Concrete Walls
-
---- BUYER ADDED TERMS & CONDITIONS (ATC) ---
-1. Scope of Supply: Supply of specified paint in 20L sealed containers. Price to include all cost components including delivery to site.
-2. Certificates: Bidder must upload test certificates from NABL accredited lab for IS 15489 compliance.
-3. Warranty: A 10-year comprehensive warranty certificate must be provided.
-4. Only OEM or their authorized dealers are eligible to participate.
-
+- Type: Swaged Steel Tubular Pole
+- Overall Length: 9 Meters
+- Standard: Must comply with IS 2713
+- Finish: Hot Dip Galvanized
 `;
 
-export const rfpDoc_MES_Epoxy = `
-Military Engineer Services - E-Tender Notice
+// 2. NHAI - High Mast Lighting (Matches PLB-HMT-30M-V2Q3)
+export const rfpDoc_NHAI_HighMast = `
+National Highways Authority of India - NHAI E-Tender
 
-Bid Number: MES/PUNE/2026/B/112233
-Item Description: Supply of Heavy Duty Epoxy Floor Coating
-Quantity: 5000 Litres
-Bid Type: Single Packet Bid
-Bid End Date: 15-02-2026 18:00:00
-Offer Validity: 120 Days
-ePBG: 5.00%
-Payment Terms: As per MES Standard Conditions of Contract
-Consignee: Garrison Engineer (Air Force), Air Force Station Lohegaon, Pune, Maharashtra - 411032
+Bid Number: NHAI/PUNJAB/2026/B/112233
+Item Description: High Mast Lighting Tower for large area with LED Flood Lighting System (Q3)
+Quantity: 15
+Bid End Date: 15-03-2026 18:00:00
+Consignee: Project Director, NHAI PIU Jalandhar
+
 Technical Specs:
-- Type: Two-component, solvent-based epoxy floor coating
-- Finish: High Gloss
-- Abrasion Resistance: Excellent, as per ASTM D4060
-- Chemical Resistance: Resistant to Skydrol, ATF, and common industrial chemicals.
-- Application: Aircraft Hangar Floor
-- Standard: Must meet IS 15283 specifications.
-Documents Required: OEM Authorization, Past supply record to Defence establishments, NABL lab test reports.
+- Height: 30 Meters
+- Mechanism: Raising and Lowering type
+- Standards: IS 875 Part-3 (Wind Loading)
+- Luminaires: High power LED Flood Lights included
 `;
 
-export const rfpDoc_Prestige_Interior = `
-Prestige Group - Request for Quotation
+// 3. Ministry of Power - Armoured Cables (Matches PLB-MCCB-125A-4P-36K or similar)
+export const rfpDoc_PowerGrid_Cables = `
+Power Grid Corporation of India - Request for Quotation
 
-RFQ Number: PRESTIGE/FALCON/2026/RFQ/101
-Project Name: Prestige Falcon City - Phase III Interiors
-Item Description: Supply of Premium Interior Emulsion & Enamel Paints
-Bid End Date: 22-02-2026 15:00:00
-Bid Type: Two Packet Bid
-Offer Validity: 90 Days
-Consignee: Project Manager, Prestige Falcon City, Kanakapura Road, Bangalore, Karnataka-560062
-Items:
-1. Royale Matt Luxury Emulsion (or equivalent) - 10000 Litres
-2. Apcolite Premium Satin Enamel (or equivalent) - 2000 Litres
+RFQ Number: PGCIL/WR1/2026/CABLE/101
+Item Description: PVC Insulated Unsheathed Flexible Cable
+Quantity: 2000 Meters
+Bid End Date: 22-03-2026 15:00:00
+Consignee: PGCIL Substation, Nagpur, Maharashtra
+
 Technical Specs:
-- Emulsion: Low VOC (Green Building Compliant), Anti-Bacterial, High Washability.
-- Enamel: High Gloss, Non-yellowing, for wooden doors and trim.
-Documents Required: Green Building Product Certificate (LEED/IGBC), Shade Card approvals from architect, Company financial statements.
+- Standard: IS 694
+- Voltage Grade: 1100V
+- Size: 1.5 sq.mm
+- Conductor: Flexible Copper
 `;
 
-export const rfpDoc_LT_Industrial = `
-Larsen & Toubro - Infrastructure Division - Vendor Enquiry
+// 4. NIC - Networking Infrastructure (Matches CIS-L3S-C9300-48T)
+export const rfpDoc_NIC_Switches = `
+National Informatics Centre - Vendor Enquiry
 
-Enquiry No: LNT/INFRA/BRIDGE/PU/2026/045
-Item: High Performance Aliphatic Polyurethane (PU) Topcoat
-Quantity: 8000 Litres
-Closing Date: 05-03-2026 17:00:00
-Bid Type: Single Packet Bid
-Offer Validity: 120 days
-Consignee: L&T Chenab Bridge Project Site, Kauri, Jammu & Kashmir
+Enquiry No: NIC/DATA-CENTER/2026/045
+Item: Layer - 3 Distribution Switch (Managed Ethernet Switches)
+Quantity: 10
+Closing Date: 05-04-2026 17:00:00
+
 Technical Specs:
-- Base: Aliphatic Polyurethane
-- Properties: Excellent UV resistance, corrosion resistance, and gloss retention.
-- Application: Final topcoat for structural steel of bridge superstructure.
-- Standard: Must comply with SSPC-Paint 36 Level 3.
-- Warranty: 15-year performance warranty required.
-Documents Required: NACE/FROSIO certified inspector report for previous projects, Detailed application methodology, 15-year warranty certificate draft.
+- Type: Layer-3 Distribution
+- Ports: 48-port Data Only
+- Stacking Bandwidth: 480 Gbps
+- Service: Supply, Installation, Testing, Commissioning (SITC)
 `;
 
-export const rfpDoc_Godrej_Waterproofing = `
-Godrej Properties Ltd - Material Procurement Tender
+// 5. Port Trust - Industrial Protection (Matches PLB-MCCB-125A-4P-36K)
+export const rfpDoc_PortTrust_MCCB = `
+Visakhapatnam Port Trust - Material Procurement Tender
 
-Tender ID: GPL/KOL/WTRPRF/2026/78
-Item: Elastomeric Liquid Waterproofing Membrane
-Quantity: 7500 Litres
-Bid End Date: 12-02-2026 14:00:00
-Bid Type: Two Packet Bid
-Offer Validity: 90 days
-Consignee: Godrej Waterside IT Park, Salt Lake Sector V, Kolkata, West Bengal - 700091
+Tender ID: VPT/ELECT/2026/78
+Item: Molded Case Circuit Breakers (MCCB) - 125A 4-Pole
+Quantity: 25
+Bid End Date: 12-03-2026 14:00:00
+
 Technical Specs:
-- Type: Fibre-reinforced elastomeric liquid waterproofing membrane.
-- Elongation: Minimum 400%
-- Application: Concrete roofs, terraces, and podiums.
-- Standard: Must meet ASTM D6083 standards.
-Documents Required: Product Technical Data Sheet (PDS), Material Safety Data Sheet (MSDS), past project completion certificates for similar applications.
+- Standard: IS/IEC 60947
+- Rating: 125 Ampere
+- Breaking Capacity: 36kA
+- Poles: 4-Pole
 `;
 
-export const rfpDocumentContent = rfpDoc_CPWD_Exterior;
+export const rfpDocumentContent = rfpDoc_CPWD_Poles;
 
 export const initialRfpList: Rfp[] = [
   {
-    id: 'CPWD/GGN/2026/B/987654',
+    id: 'GEM/2026/B/987654',
     organisation: 'CPWD, Gurgaon Division',
     bidType: 'Two Packet Bid',
-    closingDate: new Date('2026-01-28T17:00:00'),
+    closingDate: new Date('2026-02-28T17:00:00'),
     status: 'Pending',
-    rawDocument: rfpDoc_CPWD_Exterior,
+    rawDocument: rfpDoc_CPWD_Poles,
     source: 'File',
-    fileName: 'CPWD-Paint-Tender.pdf',
+    fileName: 'CPWD-Tubular-Poles.pdf',
     agentOutputs: {},
   },
   {
-    id: 'MES/PUNE/2026/B/112233',
-    organisation: 'Military Engineer Services, Pune',
+    id: 'NHAI/PUNJAB/2026/B/112233',
+    organisation: 'NHAI, PIU Jalandhar',
     bidType: 'Single Packet Bid',
     closingDate: addDays(today, 25),
     status: 'Pending',
-    rawDocument: rfpDoc_MES_Epoxy,
+    rawDocument: rfpDoc_NHAI_HighMast,
     source: 'URL',
-    fileName: 'https://mes.gov.in/tenders/pune-112233',
+    fileName: 'https://nhai.gov.in/tenders/high-mast-112233',
     agentOutputs: {},
   },
   {
-    id: 'PRESTIGE/FALCON/2026/RFQ/101',
-    organisation: 'Prestige Group, Bangalore',
+    id: 'PGCIL/WR1/2026/CABLE/101',
+    organisation: 'Power Grid Corporation',
     bidType: 'Two Packet Bid',
     closingDate: addDays(today, 32),
     status: 'Pending',
-    rawDocument: rfpDoc_Prestige_Interior,
+    rawDocument: rfpDoc_PowerGrid_Cables,
     source: 'File',
-    fileName: 'Prestige-Falcon-Interiors.pdf',
+    fileName: 'PGCIL-Cable-RFQ.pdf',
     agentOutputs: {},
   },
   {
-    id: 'LNT/INFRA/BRIDGE/PU/2026/045',
-    organisation: 'L&T Infrastructure',
+    id: 'NIC/DATA-CENTER/2026/045',
+    organisation: 'NIC Data Center',
     bidType: 'Single Packet Bid',
     closingDate: addDays(today, 45),
     status: 'Pending',
-    rawDocument: rfpDoc_LT_Industrial,
+    rawDocument: rfpDoc_NIC_Switches,
     source: 'URL',
-    fileName: 'https://larsentoubro.com/vendor/enq-045',
+    fileName: 'https://nic.gov.in/vendor/switches-045',
     agentOutputs: {},
   },
   {
-    id: 'GPL/KOL/WTRPRF/2026/78',
-    organisation: 'Godrej Properties, Kolkata',
+    id: 'VPT/ELECT/2026/78',
+    organisation: 'Visakhapatnam Port Trust',
     bidType: 'Two Packet Bid',
     closingDate: addDays(today, 22),
     status: 'Pending',
-    rawDocument: rfpDoc_Godrej_Waterproofing,
+    rawDocument: rfpDoc_PortTrust_MCCB,
     source: 'File',
-    fileName: 'Godrej-Waterproofing-RFQ.pdf',
+    fileName: 'VPT-MCCB-Tender.pdf',
     agentOutputs: {},
   },
 ];

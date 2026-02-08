@@ -7,6 +7,8 @@ export type AgentName =
   | 'PARSING_ENGINE'
   | 'TECHNICAL_AGENT'
   | 'PRICING_AGENT'
+  | 'SALES_AGENT'      // Add this
+  | 'DISCOVERY_AGENT'
   | 'FINALIZING_AGENT'
   | 'SYSTEM';
 
@@ -146,9 +148,11 @@ export interface LineItemTechnicalAnalysis {
   }[];
 }
 export interface DiscoveryFilters {
-  radius: number;
+  manualAvgKms: number;
+    manualRatePerKm: number;
   deliveryType: 'Pan India' | 'Intra State' | 'Zonal';
   allowEMD: boolean;
+  categories: string[];
   minMatchThreshold: number; // The 20% rule implementation
 }
 export interface Tender {
@@ -238,6 +242,13 @@ export interface SigningAuthority {
 export interface AppConfig {
   companyDetails: CompanyConfig;
   signingAuthorities: SigningAuthority[];
+  discoveryFilters: {
+    allowEMD: boolean;
+    minMatchThreshold: number;
+    categories: [string,string,string];
+    manualAvgKms: number;
+    manualRatePerKm: number;
+  };
 }
 
 /* =========================
@@ -245,6 +256,7 @@ export interface AppConfig {
 ========================= */
 
 export type View =
+  | 'frontpage'
   | 'rfps'
   | 'store'
   | 'config'

@@ -9,7 +9,7 @@ const model = genAI.getGenerativeModel({
   model: "gemini-2.5-flash",
   generationConfig: {
     temperature: 0.1,
-    maxOutputTokens: 8192
+    maxOutputTokens: 20480,
   }
 });
 
@@ -62,6 +62,7 @@ STRICT RULES:
 3. Buyer added terms must include mentions of inspection, guarantee, and option clauses.
 4. Output ONLY the JSON object. No preamble, no markdown.
 5. IMPORTANT: If any text contains double quotes, replace them with single quotes inside the JSON string to prevent parsing errors.
+6. Buyer added terms: Provide ONLY the first 10 most critical terms.Summarize each to under 100 characters. DO NOT include full legal text.
 
 DOCUMENT CONTENT:
 ${content}
@@ -95,12 +96,20 @@ try {
     .replace(/[\u2018\u2019]/g, "'") 
     .replace(/\n/g, " ");
 
-  /**
-   * 2. REPAIR INTERNAL QUOTES (The "Position 1666" Fix)
-   * We look for content inside the JSON values. If we find quotes 
-   * that aren't properly escaped or are breaking the string, 
-   * we convert them to single quotes.
-   */
+    const repairJson = (str: string) => {
+    const stack: string[] = [];
+    for (const char of str) {
+      if (char === '{') stack.push('}');
+      else if (char === '[') stack.push(']');
+      else if (char === '}' || char === ']') {
+        if (stack[stack.length - 1] === char) stack.pop();
+      }
+    }
+    return str + stack.reverse().join('');
+  };
+
+  sanitizedJson = repairJson(sanitizedJson);
+  
   sanitizedJson = sanitizedJson.replace(/":\s*"(.*?)"\s*([,}])/g, (match, content, suffix) => {
     // Replace internal double quotes with single quotes inside the value
     const cleanedContent = content.replace(/"/g, "'");
