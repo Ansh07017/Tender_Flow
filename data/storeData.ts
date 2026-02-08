@@ -219,45 +219,5 @@ export const productInventory: SKU[] = [
     availableQuantity: 10000, warehouseLocation: "Ankleshwar, GJ", warehouseCode: "ANK-01", warehouseLat: 21.6262, warehouseLon: 72.9922,
     truckType: 'MINI_TRUCK', leadTime: 5, costPrice: 250, unitSalesPrice: 320, bulkSalesPrice: 300,
     gstRate: 18, minMarginPercent: 15, isActive: true, isCustomMadePossible: false, isComplianceReady: true,
-  },
-  // Add 32 more SKUs...
-  ...Array.from({ length: 32 }, (_, i) => {
-    const cat = i % 4;
-    const loc = i % 5;
-    const warehouses = [
-      { name: "Rohtak, HR", code: "ROH-01", lat: 28.8955, lon: 76.6066 },
-      { name: "Ankleshwar, GJ", code: "ANK-01", lat: 21.6262, lon: 72.9922 },
-      { name: "Khandala, MH", code: "KHA-01", lat: 18.7618, lon: 73.3768 },
-      { name: "Sriperumbudur, TN", code: "SRI-01", lat: 12.9602, lon: 79.9405 },
-      { name: "Kolkata, WB", code: "KOL-01", lat: 22.5726, lon: 88.3639 },
-    ];
-    const categories = [
-      { cat: "Decorative Paints", sub: "Interior Emulsion" },
-      { cat: "Industrial Coatings", sub: "Epoxy Coating" },
-      { cat: "Waterproofing Products", sub: "Waterproofing Membrane" },
-      { cat: "Primers & Undercoats", sub: "Wall Primer" },
-    ];
-    const basePrice = (cat + 1) * 1000 + i * 50;
-    
-    return {
-      skuId: `GEN-SKU-${1000 + i}`,
-      productName: `${categories[cat].sub} Gen-${i + 1} (20L)`,
-      productCategory: categories[cat].cat,
-      productSubCategory: categories[cat].sub,
-      oemBrand: "Asian Paints",
-      specification: { "Finish": "Matte", "Base": "Water-based", "Coverage_SqM_Per_Litre": `${10+cat}-${12+cat}`, "Drying_Time_Hours": `${4+cat}-${6+cat}`, "Application": "General", "Standard": `IS 10${i+1}` },
-      availableQuantity: 1000 + i * 50,
-      warehouseLocation: warehouses[loc].name, warehouseCode: warehouses[loc].code, warehouseLat: warehouses[loc].lat, warehouseLon: warehouses[loc].lon,
-      truckType: (['LCV', 'MEDIUM_TRUCK', 'HEAVY_TRUCK'] as const)[i%3],
-      leadTime: 5 + i % 10,
-      costPrice: basePrice,
-      unitSalesPrice: Math.floor(basePrice * 1.25),
-      bulkSalesPrice: Math.floor(basePrice * 1.18),
-      gstRate: 18,
-      minMarginPercent: 15,
-      isActive: true,
-      isCustomMadePossible: false,
-      isComplianceReady: true,
-    };
-  }),
-];
+  }
+]

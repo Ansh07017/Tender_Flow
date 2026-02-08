@@ -9,7 +9,7 @@ import { Header } from './components/Header';
 import { StoreScreen } from './components/StoreScreen';
 import { productInventory as initialInventory } from '../data/storeData';
 
-import type { View } from '../types';
+import type { View,Tender,} from '../types';
 import {
   AgentName,
   LogEntry,
@@ -51,6 +51,8 @@ const App: React.FC = () => {
   const [config, setConfig] = useState<AppConfig>(initialConfig);
   const [processingStartTime, setProcessingStartTime] = useState<Date | null>(null);
   const [inventory, setInventory] = useState(initialInventory);
+  const [discoveryResults, setDiscoveryResults] = useState<Tender[]>([]);
+  const [isDiscoveryScanning, setIsDiscoveryScanning] = useState(false);
   /* -------------------- Logging -------------------- */
   const addLog = useCallback(
     (agent: AgentName | 'SYSTEM', message: string, data?: any) => {
@@ -190,8 +192,47 @@ const App: React.FC = () => {
       return <StoreScreen inventory={inventory} setInventory={setInventory} />;
 
       case 'discovery':
-  return <DiscoveryScreen inventory={inventory} onProcessDiscovery={(url) => addRfp({ source: 'URL', content: url, fileName: url })} />;
+  return (
+    <DiscoveryScreen 
+      inventory={inventory} 
+      results={discoveryResults}
+      isScanning={isDiscoveryScanning} 
+      onSearch={async (portal, category, filters) => {
+        setIsDiscoveryScanning(true);
+        addLog('MASTER_AGENT', `Requesting Backend Discovery Agent for ${category}...`);
+        
+        try {
+          // Call your Node.js backend instead of a local class
+          const response = await fetch('http://localhost:3001/api/discover', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ portal, category, filters, inventory }),
+          });
 
+          const result = await response.json();
+          
+          if (result.success) {
+            setDiscoveryResults(result.data);
+            addLog('MASTER_AGENT', `Discovery complete: ${result.data.length} bids qualified.`);
+          } else {
+            throw new Error(result.error || 'Server error during discovery');
+          }
+        } catch (error) {
+          addLog('SYSTEM', `Discovery failed: ${error instanceof Error ? error.message : 'Backend unreachable'}`);
+        } finally {
+          setIsDiscoveryScanning(false);
+        }
+      }}
+      onProcessDiscovery={(url) => {
+        const bidId = url.replace(/\/$/, '').split('/').pop();
+        addRfp({ 
+          source: 'URL', 
+          content: url, 
+          fileName: `GeM_${bidId}`
+        });
+      }} 
+    />
+  );
       case 'analysis':
         return selectedRfp ? (
           <AnalysisScreen rfp={selectedRfp} onBack={handleBackToList} />

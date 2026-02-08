@@ -7,7 +7,8 @@ export type AgentName =
   | 'PARSING_ENGINE'
   | 'TECHNICAL_AGENT'
   | 'PRICING_AGENT'
-  | 'FINALIZING_AGENT';
+  | 'FINALIZING_AGENT'
+  | 'SYSTEM';
 
 export type SystemAgent = 'SYSTEM';
 
@@ -15,11 +16,7 @@ export interface LogEntry {
   timestamp: Date;
   agent: AgentName | SystemAgent;
   message: string;
-  /**
-   * Always stored as stringified JSON or plain text.
-   * Never raw objects → prevents React crashes.
-   */
-  data?: string;
+  data?: any;
 }
 
 /* =========================
@@ -148,7 +145,27 @@ export interface LineItemTechnicalAnalysis {
     verified: boolean;
   }[];
 }
-
+export interface DiscoveryFilters {
+  radius: number;
+  deliveryType: 'Pan India' | 'Intra State' | 'Zonal';
+  allowEMD: boolean;
+  minMatchThreshold: number; // The 20% rule implementation
+}
+export interface Tender {
+  id: string;
+  title: string;
+  org: string;
+  endDate: string;
+  category: string;
+  url: string;
+  emdRequired: boolean;
+  consigneeLocation: string;
+  distance?: number;
+  matchScore?: number;
+  inStock?: boolean;
+  isQualified?: boolean;
+  risk: 'Low' | 'Medium' | 'High';
+}
 /* =========================
    CORE RFP ENTITY
 ========================= */
@@ -164,15 +181,29 @@ export type RfpStatus =
 export interface Rfp {
   id: string;
 
+  // Tender-specific fields (often populated by Discovery Agent)
   organisation: string;
   bidType: string;
   closingDate: Date;
-
+  
+  // High-level metadata
   status: RfpStatus;
-  rawDocument: string;
+  rawDocument: string; // Original text or URL content
 
+  // Source tracking
   source: 'URL' | 'File';
-  fileName?: string;
+  fileName?: string; // Original filename or Tender ID
+  
+  // AGENTIC UPDATES: State tracking for processing
+  activeAgent?: AgentName; 
+  processingDuration?: number; // In seconds
+  
+  // Storage for the structured data returned by agents
+  agentOutputs?: {
+    parsedData?: any;      // Results from Parsing Engine
+    technicalMatch?: any;  // Results from Technical Agent
+    pricingAnalysis?: any; // Results from Pricing Agent
+  };
 
   ingestionStatus?: {
     detected: boolean;
@@ -180,33 +211,7 @@ export interface Rfp {
     ocrFallback: boolean;
     extracted: boolean;
   };
-
-  agentOutputs: {
-    parsedData?: ParsedRfpData;
-
-    eligibilityAnalysis?: {
-      criterion: string;
-      statusText: string;
-      status: 'Pass' | 'Warn' | 'Info' | 'Fail';
-    }[];
-
-    technicalAnalysis?: {
-      lineItemAnalyses: LineItemTechnicalAnalysis[];
-    };
-
-    pricing?: Record<string, number>;
-
-    riskAnalysis?: {
-      category: 'Logistics' | 'Compliance' | 'Financial' | 'Technical';
-      statement: string;
-      riskLevel: 'Low' | 'Medium' | 'High';
-    }[];
-  };
-
-  activeAgent?: AgentName;
-  processingDuration?: number;
 }
-
 /* =========================
    APP CONFIGURATION
 ========================= */

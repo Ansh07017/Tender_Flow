@@ -8,6 +8,7 @@ import { runTechnicalAgent } from "../src/agents/technicalagent";
 import runFinancialAgent from "../src/agents/financialagent";
 import { productInventory } from "../data/storeData";
 import * as pdfjsLib from "pdfjs-dist/legacy/build/pdf.mjs";
+import { DiscoveryCoordinator } from "./discovery/DiscoveryCoord";
 
 process.on('uncaughtException', (err) => {
   console.error('🔥 CRITICAL UNCAUGHT EXCEPTION:', err);
@@ -39,6 +40,50 @@ async function extractTextFromBuffer(buffer: ArrayBuffer): Promise<string> {
 const app = express();
 app.use(cors());
 app.use(express.json({ limit: "10mb" }));
+
+app.post("/api/discover", async (req: Request, res: Response) => {
+  try {
+    const { portal, category, filters, inventory } = req.body;
+
+    if (!category || !inventory) {
+      return res.status(400).json({ 
+        success: false, 
+        error: "Missing required discovery parameters (category or inventory)." 
+      });
+    }
+
+    // Initialize Coordinator with a server-side console logger
+    const coordinator = new DiscoveryCoordinator(inventory, (agent, message, data) => {
+      console.log(`[${agent}] ${message}`, data || "");
+    });
+
+    addLogToConsole('MASTER_AGENT', `Starting discovery for: ${category}`);
+    
+    const qualifiedBids = await coordinator.runDiscovery(
+      portal || 'gem', 
+      category, 
+      filters
+    );
+
+    res.json({ 
+      success: true, 
+      data: qualifiedBids 
+    });
+
+  } catch (err: any) {
+    console.error("Discovery Route Error:", err.message);
+    res.status(500).json({ 
+      success: false, 
+      error: "Discovery Agent failed to scan portals",
+      message: err.message 
+    });
+  }
+});
+
+// Helper for server-side logging visibility
+function addLogToConsole(agent: string, message: string) {
+  console.log(`\x1b[35m%s\x1b[0m`, `[${agent}]`, message); 
+}
 
 app.post("/api/fetch-rfp-url", async (req: Request, res: Response) => {
   try {
