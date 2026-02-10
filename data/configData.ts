@@ -21,15 +21,13 @@ export const initialConfig: AppConfig = {
       din: '09124432',
     },
   ],
-  // FIX: Added discoveryFilters to resolve ts(2741)
   discoveryFilters: {
-    radius: 500,               // Search within 500km of Jalandhar
-    minMatchThreshold: 20,     // Your "Hard Gate" for Technical Agent
-    allowEMD: true,            // Allow tenders requiring Earnest Money Deposit
+    manualAvgKms: 400,
+    manualRatePerKm: 55,             
+    minMatchThreshold: 20,     
+    allowEMD: true,
     categories: [
-      "Wires and Cables", 
-      "Lighting Pole or Post and Hardware", 
-      "High Mast Lighting Tower"
+      "Lighting Pole or Post and Hardware"
     ]
   }
 };

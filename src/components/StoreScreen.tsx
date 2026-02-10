@@ -1,4 +1,3 @@
-
 import React, { useState, useRef, useMemo } from 'react';
 import { SKU } from '../../types';
 import { AddItemModal } from './AddItemModal';
@@ -8,130 +7,189 @@ interface StoreScreenProps {
   setInventory: React.Dispatch<React.SetStateAction<SKU[]>>;
 }
 
-type SortKeys = keyof SKU;
-type SortDirection = 'asc' | 'desc';
-
 const currencyFormatter = new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR' });
-
-const columnsConfig: { key: keyof SKU | 'warehouseCity' | 'warehouseState'; header: string; isBase: boolean; render?: (item: SKU) => React.ReactNode }[] = [
-    { key: 'skuId', header: 'SKU No', isBase: true },
-    { key: 'productName', header: 'Item Name', isBase: true },
-    { key: 'productCategory', header: 'Category', isBase: false },
-    { key: 'specification', header: 'Specification JSON', isBase: false, render: (item) => {
-        const specString = JSON.stringify(item.specification);
-        return <span title={specString}>{specString.length > 30 ? `${specString.substring(0, 30)}...` : specString}</span>;
-    }},
-    { key: 'availableQuantity', header: 'Available Quantity', isBase: true, render: (item) => `${item.availableQuantity} units` },
-    { key: 'costPrice', header: 'Cost Price', isBase: true, render: (item) => currencyFormatter.format(item.costPrice) },
-    { key: 'unitSalesPrice', header: 'Sales Price', isBase: true, render: (item) => currencyFormatter.format(item.unitSalesPrice) },
-    { key: 'bulkSalesPrice', header: 'Bulk Sales Price', isBase: false, render: (item) => currencyFormatter.format(item.bulkSalesPrice) },
-    { key: 'gstRate', header: 'GST Rate', isBase: false, render: (item) => `${item.gstRate}%` },
-    { key: 'warehouseCity', header: 'Warehouse City', isBase: true, render: (item) => item.warehouseLocation.split(',')[0] || item.warehouseLocation },
-    { key: 'warehouseState', header: 'Warehouse State', isBase: false, render: (item) => item.warehouseLocation.split(',')[1]?.trim() || 'N/A' },
-    { key: 'truckType', header: 'Truck Type', isBase: false },
-];
 
 export const StoreScreen: React.FC<StoreScreenProps> = ({ inventory, setInventory }) => {
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [editingItem, setEditingItem] = useState<SKU | undefined>(undefined);
   const [searchTerm, setSearchTerm] = useState('');
-  const [sortConfig, setSortConfig] = useState<{ key: SortKeys; direction: SortDirection } | null>(null);
-  const [isExpanded, setIsExpanded] = useState(false);
+  const [isExpanded, setIsExpanded] = useState(false); 
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const handleDownloadDemo = () => {
-    const headers = "SKU_No,Item_Name,Category,Specification_JSON,Available_Quantity,Warehouse_City,Warehouse_Lat,Warehouse_Lon,Cost_Price_Per_Unit,Sales_Price_Per_Unit,Bulk_Sales_Price_Per_Unit,GST_Rate,Truck_Type,isActive,isComplianceReady";
-    const exampleRow = "AC-IND-H25,Industrial AC Compressor H25,Compressors,\"{ \"\"Type\"\": \"\"Reciprocating Compressor\"\", \"\"Motor\"\": \"\"15 HP High-efficiency motor\"\" }\",12,Nagpur,21.1458,79.0882,180000,220000,210000,18,MEDIUM_TRUCK,true,true";
-    const csvContent = `data:text/csv;charset=utf-8,${headers}\n${exampleRow}`;
-    const encodedUri = encodeURI(csvContent);
-    const link = document.createElement("a");
-    link.setAttribute("href", encodedUri);
-    link.setAttribute("download", "tenderflow_inventory_template.csv");
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-  };
-  
-  const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
-    alert("CSV import is a demo feature. Please use 'Add New' for the full schema.");
-    if(fileInputRef.current) fileInputRef.current.value = "";
-  };
-  
-  const sortedAndFilteredInventory = useMemo(() => {
-    let sortedItems = [...inventory];
-    if (sortConfig !== null) {
-      sortedItems.sort((a, b) => {
-        const valA = a[sortConfig.key];
-        const valB = b[sortConfig.key];
-        if (valA < valB) return sortConfig.direction === 'asc' ? -1 : 1;
-        if (valA > valB) return sortConfig.direction === 'asc' ? 1 : -1;
-        return 0;
-      });
-    }
-    return sortedItems.filter(sku => 
+  const filteredInventory = useMemo(() => {
+    return inventory.filter(sku => 
       sku.productName.toLowerCase().includes(searchTerm.toLowerCase()) || 
       sku.skuId.toLowerCase().includes(searchTerm.toLowerCase())
     );
-  }, [inventory, searchTerm, sortConfig]);
-  
-  const requestSort = (key: SortKeys) => {
-    let direction: SortDirection = 'asc';
-    if (sortConfig && sortConfig.key === key && sortConfig.direction === 'asc') {
-      direction = 'desc';
-    }
-    setSortConfig({ key, direction });
+  }, [inventory, searchTerm]);
+
+  // --- Handlers ---
+  const handleOpenAdd = () => {
+    setEditingItem(undefined); // Fresh state for new items
+    setIsModalOpen(true);
   };
 
-  const handleSaveItem = (newItem: SKU) => { setInventory(prev => [...prev, newItem]); setIsModalOpen(false); };
-  const handleDeleteItem = (skuId: string) => { if (window.confirm(`Are you sure you want to delete SKU ${skuId}?`)) { setInventory(prev => prev.filter(item => item.skuId !== skuId)); } };
-  
-  const visibleColumns = useMemo(() => isExpanded ? columnsConfig : columnsConfig.filter(c => c.isBase), [isExpanded]);
+  const handleOpenEdit = (item: SKU) => {
+    setEditingItem(item); // Load existing row data into state
+    setIsModalOpen(true);
+  };
+
+  const handleSaveItem = (item: SKU) => {
+    setInventory(prev => {
+      const exists = prev.find(i => i.skuId === item.skuId);
+      if (exists) {
+        // Update only the specific columns that changed
+        return prev.map(i => i.skuId === item.skuId ? item : i);
+      }
+      return [...prev, item];
+    });
+    setIsModalOpen(false);
+  };
 
   return (
-    <>
-      <AddItemModal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} onSave={handleSaveItem} />
-      <input type="file" accept=".csv" ref={fileInputRef} onChange={handleFileChange} className="hidden" />
-      <div className="bg-base-200 p-6 rounded-lg shadow-sm border border-base-300">
-        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-4 gap-4">
-          <h2 className="text-xl font-bold">Store Inventory</h2>
-          <div className="flex flex-wrap items-center gap-2">
-            <input type="text" placeholder="Search SKU or Name..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="text-sm p-2 bg-base-100 border border-base-300 rounded-md focus:ring-1 focus:ring-accent-700 focus:border-accent-700"/>
-            <button onClick={() => setIsExpanded(!isExpanded)} className="text-sm bg-base-300 text-ink-700 px-3 py-2 rounded-md hover:bg-opacity-80 font-semibold border border-base-300">
-                {isExpanded ? 'Show Less' : 'Show More'} Columns
-            </button>
-            <button onClick={() => setIsModalOpen(true)} className="text-sm bg-success-700 text-white px-3 py-2 rounded-md hover:bg-opacity-80 font-semibold">Add New</button>
-          </div>
+    /* FIXED HEIGHT CONTAINER: Prevents page-level scroll, forces internal scroll */
+    <div className="h-[calc(100vh-140px)] w-full flex flex-col bg-slate-950 text-slate-200 font-sans relative overflow-hidden">
+      <div className="absolute top-0 right-0 w-[500px] h-[500px] bg-gold-500/5 blur-[120px] rounded-full pointer-events-none" />
+      
+      {/* MODAL PLACEMENT: Ensure it is lower or relative to the viewport. 
+        Note: The actual vertical offset should be managed within AddItemModal's wrapper. 
+      */}
+      <AddItemModal 
+        isOpen={isModalOpen} 
+        onClose={() => setIsModalOpen(false)} 
+        onSave={handleSaveItem} 
+        initialData={editingItem} 
+      />
+      
+      <input type="file" accept=".csv" ref={fileInputRef} className="hidden" />
+
+      {/* HEADER SECTION: Fills full width */}
+      <div className="shrink-0 bg-slate-900/40 border border-slate-800 rounded-3xl p-6 flex items-center justify-between backdrop-blur-xl mb-6">
+        <div className="space-y-1">
+          <h1 className="text-3xl font-black italic tracking-tighter text-white uppercase italic">
+            Store <span className="text-gold-500">Inventory</span>
+          </h1>
+          <p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest leading-none">
+            Authorized Master Logistics Control
+          </p>
         </div>
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm text-left text-ink-500">
-            <thead className="text-xs text-ink-700 uppercase bg-base-100">
+
+        <div className="flex flex-wrap gap-3">
+          <input 
+            type="text" 
+            placeholder="Filter SKUs..." 
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="bg-slate-900/50 border border-slate-700 rounded-xl px-4 py-2 text-sm focus:border-gold-500 outline-none w-64 transition-all"
+          />
+          <button 
+            onClick={() => setIsExpanded(!isExpanded)}
+            className="bg-slate-800 hover:bg-slate-700 text-white px-5 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest border border-slate-700 transition-all"
+          >
+            {isExpanded ? 'Show Basic' : 'Show Detailed'}
+          </button>
+          <button 
+            onClick={handleOpenAdd}
+            className="bg-white text-slate-950 px-5 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all shadow-[0_0_20px_rgba(212,175,55,0.3)]"
+          >
+            + Add SKU
+          </button>
+        </div>
+      </div>
+
+      {/* SCROLLABLE AREA: flex-grow and overflow-auto ensures the table 
+        scrolls vertically within the frame 
+      */}
+      <div className="flex-grow bg-slate-900/40 border border-slate-800 rounded-3xl overflow-hidden backdrop-blur-xl flex flex-col">
+        <div className="overflow-x-auto overflow-y-auto flex-grow scrollbar-hide">
+          <table className="w-full text-left border-collapse min-w-[1000px]">
+            <thead className="sticky top-0 bg-slate-900 z-10 border-b border-slate-800">
               <tr>
-                {visibleColumns.map(col => (
-                  <th key={col.key} scope="col" className="px-6 py-3 cursor-pointer font-semibold whitespace-nowrap" onClick={() => requestSort(col.key as SortKeys)}>
-                    {col.header}
-                  </th>
-                ))}
-                <th scope="col" className="px-6 py-3 text-center font-semibold">Actions</th>
+                {/* 8 Core Columns */}
+                <th className="px-6 py-4 text-[10px] font-black uppercase text-slate-500 tracking-widest">Master ID</th>
+                <th className="px-6 py-4 text-[10px] font-black uppercase text-slate-500 tracking-widest">Description</th>
+                <th className="px-6 py-4 text-[10px] font-black uppercase text-slate-500 tracking-widest">Category</th>
+                <th className="px-6 py-4 text-[10px] font-black uppercase text-slate-500 tracking-widest text-center">Qty</th>
+                <th className="px-6 py-4 text-[10px] font-black uppercase text-slate-500 tracking-widest">OEM Brand</th>
+                <th className="px-6 py-4 text-[10px] font-black uppercase text-slate-500 tracking-widest">Warehouse</th>
+                <th className="px-6 py-4 text-[10px] font-black uppercase text-slate-500 tracking-widest text-right">Unit Price</th>
+                <th className="px-6 py-4 text-[10px] font-black uppercase text-slate-500 tracking-widest text-center">Lead Time</th>
+                
+                {/* Detailed View Columns */}
+                {isExpanded && (
+                  <>
+                    <th className="px-6 py-4 text-[10px] font-black uppercase text-slate-500 tracking-widest">Sub-Category</th>
+                    <th className="px-6 py-4 text-[10px] font-black uppercase text-slate-500 tracking-widest">Cost Price</th>
+                    <th className="px-6 py-4 text-[10px] font-black uppercase text-slate-500 tracking-widest text-center">GST %</th>
+                    <th className="px-6 py-4 text-[10px] font-black uppercase text-slate-500 tracking-widest">Truck Type</th>
+                  </>
+                )}
+                <th className="px-6 py-4 text-[10px] font-black uppercase text-slate-500 tracking-widest text-center sticky right-0 bg-slate-900">Actions</th>
               </tr>
             </thead>
-            <tbody>
-              {sortedAndFilteredInventory.map(sku => (
-                <tr key={sku.skuId} className="bg-base-200 border-b border-base-300 hover:bg-base-300">
-                    {visibleColumns.map(col => (
-                        <td key={`${sku.skuId}-${col.key}`} className={`px-6 py-4 ${col.key === 'skuId' ? 'font-semibold text-ink-700' : ''} whitespace-nowrap`}>
-                            {col.render ? col.render(sku) : sku[col.key as keyof SKU]}
-                        </td>
-                    ))}
-                    <td className="px-6 py-4 text-center">
-                      <div className="flex justify-center gap-2">
-                        <button onClick={() => handleDeleteItem(sku.skuId)} className="font-semibold text-error-700 hover:underline">Delete</button>
-                      </div>
-                    </td>
+            <tbody className="divide-y divide-slate-800/50">
+              {filteredInventory.map((sku) => (
+                <tr key={sku.skuId} className="hover:bg-gold-500/5 transition-colors group">
+                  <td className="px-6 py-4 font-mono text-[10px] text-slate-500 uppercase">{sku.skuId}</td>
+                  <td className="px-6 py-4">
+                    <div className="font-bold text-white group-hover:text-gold-500 transition-colors text-sm">{sku.productName}</div>
+                  </td>
+                  <td className="px-6 py-4">
+                    <span className="text-[10px] px-2 py-1 rounded bg-slate-800 border border-slate-700 text-slate-400 font-bold uppercase">{sku.productCategory}</span>
+                  </td>
+                  <td className="px-6 py-4 text-center">
+                    <div className="flex flex-col items-center">
+                      <div className={`w-1.5 h-1.5 rounded-full mb-1 ${sku.availableQuantity > 10 ? 'bg-emerald-500 shadow-[0_0_8px_#10b981]' : 'bg-red-500'}`} />
+                      <span className="text-sm font-medium text-slate-300">{sku.availableQuantity}</span>
+                    </div>
+                  </td>
+                  <td className="px-6 py-4 text-sm text-slate-400 italic">{sku.oemBrand}</td>
+                  <td className="px-6 py-4 text-[10px] text-slate-500 uppercase tracking-widest font-bold">{sku.warehouseLocation.split(',')[0]}</td>
+                  <td className="px-6 py-4 text-right font-mono text-gold-500 font-bold">{currencyFormatter.format(sku.unitSalesPrice)}</td>
+                  <td className="px-6 py-4 text-center text-sm text-slate-400">{sku.leadTime}d</td>
+                  
+                  {isExpanded && (
+                    <>
+                      <td className="px-6 py-4 text-xs text-slate-500">{sku.productSubCategory}</td>
+                      <td className="px-6 py-4 text-sm text-slate-500 font-mono">{currencyFormatter.format(sku.costPrice)}</td>
+                      <td className="px-6 py-4 text-center text-sm text-slate-500">{sku.gstRate}%</td>
+                      <td className="px-6 py-4 text-[9px] font-black text-blue-400 uppercase">{sku.truckType.replace('_', ' ')}</td>
+                    </>
+                  )}
+                  
+                  <td className="px-6 py-4 sticky right-0 bg-slate-900/80 backdrop-blur-sm group-hover:bg-slate-800 transition-all border-l border-slate-800/50">
+                    <div className="flex justify-center gap-3">
+                      <button 
+                        onClick={() => handleOpenEdit(sku)}
+                        className="text-slate-500 hover:text-gold-500 transition-colors"
+                        title="Edit SKU"
+                      >
+                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" /></svg>
+                      </button>
+                      <button 
+                        onClick={() => setInventory(prev => prev.filter(i => i.skuId !== sku.skuId))}
+                        className="text-slate-500 hover:text-red-500 transition-colors"
+                        title="Delete SKU"
+                      >
+                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                      </button>
+                    </div>
+                  </td>
                 </tr>
               ))}
             </tbody>
           </table>
         </div>
+
+        {/* FOOTER: Fixed at bottom */}
+        <div className="shrink-0 p-4 border-t border-slate-800 bg-slate-900/60 flex justify-between items-center text-[10px] font-black uppercase tracking-[0.2em] text-slate-600">
+          <div>Total Master Records: {inventory.length}</div>
+          <div className="flex gap-4">
+            <span className="flex items-center gap-1"><span className="w-1.5 h-1.5 rounded-full bg-emerald-500" /> Compliance Active</span>
+            <span className="flex items-center gap-1"><span className="w-1.5 h-1.5 rounded-full bg-gold-500" /> High-Margin Ready</span>
+          </div>
+        </div>
       </div>
-    </>
+    </div>
   );
 };

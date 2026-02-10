@@ -132,14 +132,9 @@ financialConditions: FinancialConditions;
 
 export interface LineItemTechnicalAnalysis {
   rfpLineItem: RfpProductLineItem;
-
   top3Recommendations: SKU[];
-
-  /**
-   * Explicitly chosen SKU
-   */
   selectedSku: SKU;
-
+status: 'COMPLETE' | 'PARTIAL' | 'NONE';
   complianceChecks: {
     standard: string;
     status: 'Found' | 'Referenced' | 'NotFound';
@@ -173,7 +168,23 @@ export interface Tender {
 /* =========================
    CORE RFP ENTITY
 ========================= */
-
+export interface TechnicalAgentOutput {
+  itemAnalyses: LineItemTechnicalAnalysis[];
+}
+export interface FinancialAgentResult {
+  pricing: Record<string, number>;
+  summary: {
+    matchStatus: 'COMPLETE' | 'PARTIAL' | 'NONE';
+    confidenceScore: number;
+    requiresManualInput: boolean;
+    recommendation: string;
+  };
+  riskEntries: {
+    category: "Financial" | "Logistics";
+    statement: string;
+    riskLevel: "Low" | "Medium" | "High";
+  }[];
+}
 export type RfpStatus =
   | 'Pending'
   | 'Extracting'
@@ -205,8 +216,9 @@ export interface Rfp {
   // Storage for the structured data returned by agents
   agentOutputs?: {
     parsedData?: any;      // Results from Parsing Engine
-    technicalMatch?: any;  // Results from Technical Agent
-    pricingAnalysis?: any; // Results from Pricing Agent
+    technicalAnalysis?: TechnicalAgentOutput | null; 
+    // CHANGE 'pricingAnalysis' to 'pricing'
+    pricing?: FinancialAgentResult | null;
   };
 
   ingestionStatus?: {
@@ -245,7 +257,7 @@ export interface AppConfig {
   discoveryFilters: {
     allowEMD: boolean;
     minMatchThreshold: number;
-    categories: [string,string,string];
+    categories: [string];
     manualAvgKms: number;
     manualRatePerKm: number;
   };

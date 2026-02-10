@@ -1,209 +1,169 @@
 import { SKU, RfpProductLineItem, LineItemTechnicalAnalysis } from '../../types';
 
 /* =====================================================
-   CONFIG – tweak safely without breaking logic
+    CONFIG – Industrial Strategic Weights
 ===================================================== */
-
-const AVAILABILITY_WEIGHTS = {
-  FULL: 1.0,        // 100% available
-  PARTIAL: 0.7,     // partial stock
-  ZERO: 0.0,        // no stock
+const WEIGHTS = {
+  CATEGORY_MATCH: 1.0,  // Mandatory Gate
+  IS_STANDARD: 0.60,    // 60% of technical score
+  SPEC_DETAILS: 0.40,   // 40% of technical score
 };
 
-const PARTIAL_AVAILABILITY_THRESHOLD = 0.5; // 50%
+const AVAILABILITY = {
+  FULL: 1.0,
+  PARTIAL: 0.7,
+  ZERO: 0.0,
+  THRESHOLD: 0.4, // 50%
+};
 
 /* =====================================================
-   CORE HELPERS
+    CORE HELPERS
 ===================================================== */
 
-function calculateSpecMatch(
+/**
+ * Advanced Industrial Matching: Prioritizes IS Standards over fuzzy keywords
+ */
+function calculateIndustrialMatch(
   rfpSpecs: string[],
   skuSpecs: Record<string, string>
 ): number {
-  if (rfpSpecs.length === 0) return 50; // neutral baseline
+  if (rfpSpecs.length === 0) return 50;
 
-  let matched = 0;
+  let score = 0;
+  const skuStandard = String(skuSpecs.Standard || "").toLowerCase();
 
+  // 1. Mandatory IS Standard Check (60% Weight)
+  if (skuStandard && rfpSpecs.some(s => s.toLowerCase().includes(skuStandard))) {
+    score += (WEIGHTS.IS_STANDARD * 100);
+  }
+
+  // 2. Attribute Deep Dive (40% Weight)
+  const skuValues = Object.values(skuSpecs).map(v => String(v).toLowerCase());
+  let matchedAttributes = 0;
+  
   rfpSpecs.forEach(spec => {
-    const normalized = spec.toLowerCase();
-    Object.values(skuSpecs).forEach(v => {
-      if (normalized.includes(String(v).toLowerCase())) {
-        matched++;
-      }
-    });
+    if (skuValues.some(val => spec.toLowerCase().includes(val))) {
+      matchedAttributes++;
+    }
   });
 
-  return Math.min(100, Math.round((matched / rfpSpecs.length) * 100));
+  score += (matchedAttributes / Math.max(rfpSpecs.length, 1)) * (WEIGHTS.SPEC_DETAILS * 100);
+
+  return Math.min(100, Math.round(score));
 }
 
-function evaluateAvailability(
-  requiredQty: number,
-  availableQty: number
-): {
-  weight: number;
-  status: 'FULL' | 'PARTIAL' | 'ZERO';
-} {
-  if (availableQty <= 0) {
-    return { weight: AVAILABILITY_WEIGHTS.ZERO, status: 'ZERO' };
-  }
-
-  if (availableQty >= requiredQty) {
-    return { weight: AVAILABILITY_WEIGHTS.FULL, status: 'FULL' };
-  }
-
-  const ratio = availableQty / requiredQty;
-
-  if (ratio >= PARTIAL_AVAILABILITY_THRESHOLD) {
-    return { weight: AVAILABILITY_WEIGHTS.PARTIAL, status: 'PARTIAL' };
-  }
-
-  return { weight: AVAILABILITY_WEIGHTS.ZERO, status: 'ZERO' };
+function evaluateStock(required: number, available: number) {
+  if (available >= required) return { weight: AVAILABILITY.FULL, status: 'FULL' as const };
+  if (available / required >= AVAILABILITY.THRESHOLD) return { weight: AVAILABILITY.PARTIAL, status: 'PARTIAL' as const };
+  return { weight: AVAILABILITY.ZERO, status: 'ZERO' as const };
 }
 
 /* =====================================================
-   MAIN TECHNICAL AGENT
+    MAIN TECHNICAL AGENT
 ===================================================== */
 
 export function runTechnicalAgent(
   rfpItems: RfpProductLineItem[],
   skus: SKU[]
 ): {
-  lineItemAnalyses: LineItemTechnicalAnalysis[];
-  riskEntries: {
-    category: 'Technical' | 'Logistics';
-    statement: string;
-    riskLevel: 'Low' | 'Medium' | 'High';
-  }[];
+  lineItemAnalyses: any[];
+  riskEntries: any[];
 } {
-  if (!Array.isArray(rfpItems) || rfpItems.length === 0) {
-    return {
-      lineItemAnalyses: [],
-      riskEntries: [
-        {
-          category: 'Technical',
-          riskLevel: 'High',
-          statement:
-            'No valid line items found in RFP. Technical specifications missing or unstructured.',
-        },
-      ],
-    };
-  }
   const riskEntries: any[] = [];
+  const THRESHOLD = 20;
 
-  const lineItemAnalyses: LineItemTechnicalAnalysis[] = rfpItems.map(
-    (item) => {
-      const scoredSkus = skus.map(sku => {
-        const specScore = calculateSpecMatch(
-          item.technicalSpecs,
-          sku.specification
-        );
+  const lineItemAnalyses = rfpItems.map((item) => {
+    const rfpCat = item.name.toLowerCase();
 
-        const availability = evaluateAvailability(
-          item.quantity,
-          sku.availableQuantity
-        );
+    // PHASE 1: THE CATEGORY GATE (Strict Skip Logic)
+    const candidates = skus.filter(sku => {
+      const sCat = sku.productCategory.toLowerCase();
+      const sSub = sku.productSubCategory.toLowerCase();
+      return sCat.includes(rfpCat) || rfpCat.includes(sCat) || sSub.includes(rfpCat);
+    });
 
-        const finalScore = Math.round(
-          specScore * availability.weight
-        );
-
-        return {
-          ...sku,
-          matchPercentage: finalScore,
-          __availabilityStatus: availability.status,
-        };
-      });
-
-      scoredSkus.sort(
-        (a, b) => (b.matchPercentage ?? 0) - (a.matchPercentage ?? 0)
-      );
-
-      const selectedSku = scoredSkus[0];
-
-      /* ---------------- RISK LOGGING ---------------- */
-
-      if (selectedSku.__availabilityStatus === 'PARTIAL') {
-        riskEntries.push({
-          category: 'Logistics',
-          riskLevel: 'Medium',
-          statement: `Partial availability for "${item.name}". ${selectedSku.availableQuantity}/${item.quantity} units available.`
-        });
-      }
-
-      if (selectedSku.__availabilityStatus === 'ZERO') {
-        riskEntries.push({
-          category: 'Logistics',
-          riskLevel: 'High',
-          statement: `No immediate stock for "${item.name}". Custom manufacturing or alternate sourcing required.`
-        });
-      }
-
-      /* ---------------- COMPLIANCE PLACEHOLDER ---------------- */
-
-      const complianceChecks = item.requiredStandards?.map(std => ({
-        standard: std,
-        status: 'Referenced' as const,
-        source: 'RFP',
-        verified: false
-      })) ?? [];
-
+    // CASE 3: NOTHING MATCHES (NONE)
+    if (candidates.length === 0) {
       return {
         rfpLineItem: item,
-        top3Recommendations: scoredSkus.slice(0, 3),
-        selectedSku,
-        complianceChecks,
+        status: 'NONE',
+        selectedSku: null,
+        matchPercentage: 0,
+        technicalReasoning: "No category match in store. Requires manual sourcing/pricing.",
+        top3Recommendations: []
       };
     }
-  );
 
-  return {
-    lineItemAnalyses,
-    riskEntries
-  };
+    // PHASE 2: SCORING & AVAILABILITY
+    const scoredSkus = candidates.map(sku => {
+      const specScore = calculateIndustrialMatch(item.technicalSpecs, sku.specification);
+      const stock = evaluateStock(item.quantity, sku.availableQuantity);
+      
+      // Final Score penalizes low stock for technical readiness
+      const finalScore = Math.round(specScore * stock.weight);
+
+      return {
+        ...sku,
+        matchPercentage: finalScore,
+        __stockStatus: stock.status,
+        __specScore: specScore
+      };
+    }).sort((a, b) => (b.matchPercentage ?? 0) - (a.matchPercentage ?? 0));
+
+    const bestMatch = scoredSkus[0];
+    const matchScore = bestMatch.matchPercentage ?? 0;
+
+    // CASE 2: PARTIAL MATCH (Below 80% or below Threshold)
+    let finalStatus: 'COMPLETE' | 'PARTIAL' | 'NONE' = 'PARTIAL';
+    if (matchScore >= 80) finalStatus = 'COMPLETE';
+    if (matchScore < THRESHOLD) finalStatus = 'NONE';
+
+    /* ---------------- RISK LOGGING & REASONING ---------------- */
+    let reasoning = `High confidence match (${matchScore}%) for ${item.name}.`;
+    
+    if (bestMatch.__stockStatus !== 'FULL') {
+      riskEntries.push({
+        category: 'Logistics',
+        riskLevel: bestMatch.__stockStatus === 'ZERO' ? 'High' : 'Medium',
+        statement: `Inventory gap for ${item.name}: ${bestMatch.availableQuantity}/${item.quantity} available.`
+      });
+      reasoning += " Inventory shortfall detected.";
+    }
+
+    if (matchScore < 80 && matchScore >= THRESHOLD) {
+      riskEntries.push({
+        category: 'Technical',
+        riskLevel: 'Medium',
+        statement: `Partial spec match for ${item.name}. Verify IS Standard compliance manually.`
+      });
+    }
+
+    return {
+      rfpLineItem: item,
+      status: finalStatus,
+      selectedSku: matchScore >= THRESHOLD ? bestMatch : null,
+      matchPercentage: matchScore,
+      technicalReasoning: reasoning,
+      top3Recommendations: scoredSkus.slice(0, 3),
+      complianceChecks: item.technicalSpecs.map(spec => ({
+        spec,
+        verified: bestMatch.__specScore > 50 && spec.includes("IS")
+      }))
+    };
+  });
+
+  return { lineItemAnalyses, riskEntries };
 }
 
 /* =====================================================
-   🔬 BASIC UNIT TESTS (DEV ONLY)
+    🧪 DEV TESTS
 ===================================================== */
-
 if (process.env.NODE_ENV === 'development') {
-  const mockItem: RfpProductLineItem = {
-    name: 'Steel Bolt',
-    quantity: 100,
-    technicalSpecs: ['ISO 9001', 'M10', 'SS304'],
-  };
-
-  const skuFull: SKU = {
-    skuId: 'SKU_FULL',
-    productName: 'Steel Bolt A',
-    productCategory: 'Fasteners',
-    productSubCategory: 'Bolts',
-    oemBrand: 'OEM',
-    specification: { Grade: 'SS304', Size: 'M10' },
-    availableQuantity: 200,
-    warehouseLocation: 'Delhi',
-    warehouseCode: 'DL1',
-    warehouseLat: 0,
-    warehouseLon: 0,
-    truckType: 'LCV',
-    leadTime: 2,
-    costPrice: 10,
-    unitSalesPrice: 15,
-    bulkSalesPrice: 14,
-    gstRate: 18,
-    minMarginPercent: 10,
-    isActive: true,
-    isCustomMadePossible: false,
-    isComplianceReady: true,
-  };
-
-  const skuPartial = { ...skuFull, skuId: 'SKU_PARTIAL', availableQuantity: 60 };
-  const skuZero = { ...skuFull, skuId: 'SKU_ZERO', availableQuantity: 0 };
-
-  const result = runTechnicalAgent(
-    [mockItem],
-    [skuZero, skuPartial, skuFull]
-  );
-
-  console.log('🧪 Technical Agent Test Result:', result);
+  // Test case for Polycab High Mast Tower
+  const result = runTechnicalAgent([{
+    name: 'High Mast Lighting Tower',
+    quantity: 10,
+    technicalSpecs: ['30 Meters', 'IS 875', 'LED Floodlights']
+  }], []); 
+  console.log('🧪 Industrial Agent Mode:', result.lineItemAnalyses[0]?.status);
 }

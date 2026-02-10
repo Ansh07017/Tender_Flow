@@ -4,6 +4,7 @@ import { SKU, TruckType } from '../../types';
 
 interface AddItemModalProps {
   isOpen: boolean;
+  initialData?: SKU;
   onClose: () => void;
   onSave: (newItem: SKU) => void;
 }

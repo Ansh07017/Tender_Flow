@@ -9,6 +9,7 @@ import runFinancialAgent from "../src/agents/financialagent";
 import { productInventory } from "../data/storeData";
 import * as pdfjsLib from "pdfjs-dist/legacy/build/pdf.mjs";
 import { DiscoveryCoordinator } from "./discovery/DiscoveryCoord";
+process.env.NODE_TLS_REJECT_UNAUTHORIZED = "0";
 
 process.on('uncaughtException', (err) => {
   console.error('🔥 CRITICAL UNCAUGHT EXCEPTION:', err);
@@ -107,7 +108,7 @@ app.post("/api/fetch-rfp-url", async (req: Request, res: Response) => {
 
 app.post("/api/parse-rfp", async (req: Request, res: Response) => {
   try {
-    const { content } = req.body;
+    const { content, filters } = req.body;
 
     if (!content || typeof content !== "string") {
       return res.status(400).json({
@@ -166,10 +167,18 @@ app.post("/api/parse-rfp", async (req: Request, res: Response) => {
   technicalResult?.lineItemAnalyses &&
   technicalResult.lineItemAnalyses.length > 0;
 
+
+  const defaultFilters = {
+  manualAvgKms: 0,
+  manualRatePerKm: 55, // Your standard rate
+  allowEMD: true,
+  minMatchThreshold: 20
+};
 const financialResult = hasLineItems
   ? runFinancialAgent(
       technicalResult.lineItemAnalyses, 
-      parsedData // FIX: Pass the second argument here
+      parsedData,
+      filters||defaultFilters,
     )
   : { pricing: {}, riskEntries: [] };
 

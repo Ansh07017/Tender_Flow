@@ -1,11 +1,11 @@
 import React, { useState, useEffect } from 'react';
-import { BarChart, Bar, Tooltip, ResponsiveContainer, Cell, XAxis,LabelList, } from 'recharts';
-import { Tender } from '../../types';
+import { RfpInput } from './RfpInput'; 
+import { Tender} from '../../types';
 
 
 interface FrontPageProps {
   onNavigateToDiscovery: () => void;
-  onDirectUpload: () => void;
+  onProcessRfp: (data: { source: 'URL' | 'File'; content: string; fileName?: string; }) => void;
   tenders: Tender[];
   isScanning: boolean;           // Add this to fix the ts(2322) error
   onProcessDiscovery: (url: string) => void;
@@ -23,7 +23,7 @@ interface AgentNodeProps {
 export const FrontPage: React.FC<FrontPageProps> = ({
   onNavigateToDiscovery,
   onRefreshDiscovery,
-  onDirectUpload,
+  onProcessRfp,
   tenders = [],
   isScanning,        // Use the live state from App.tsx
   onProcessDiscovery // Use the real ingestion function
@@ -64,7 +64,7 @@ export const FrontPage: React.FC<FrontPageProps> = ({
         <div className="h-[20%] bg-slate-900/40 border border-slate-800 rounded-3xl p-6 flex items-center justify-between backdrop-blur-xl">
           <div className="space-y-1">
             <h1 className="text-3xl font-black italic tracking-tighter text-transparent bg-clip-text bg-gradient-to-r from-white to-gold-500 uppercase">
-              TenderFlow
+              Bidding <span className="text-gold-500">Dashboard</span>
             </h1>
             <p className="text-[10px] text-slate-500 font-bold leading-relaxed max-w-xs uppercase tracking-widest">
               Autonomous B2B Procurement Intelligence. Streamlining Discovery to Response.
@@ -86,7 +86,7 @@ export const FrontPage: React.FC<FrontPageProps> = ({
         </div>
 
         {/* --- MIDDLE SECTION: URGENCY HEATMAP (65%) & CHART (35%) --- */}
-<div className="h-[50%] flex gap-4">
+<div className="h-[70%] flex gap-4">
   
   {/* 1. BID URGENCY HEATMAP (65%) */}
 <div className="flex-[6.5] bg-slate-900/40 border border-slate-800 rounded-3xl p-6 flex flex-col">
@@ -117,7 +117,7 @@ export const FrontPage: React.FC<FrontPageProps> = ({
 
   <div className="flex-1 flex flex-col gap-3">
     {/* Map the top 3 most urgent tenders found by the GeMWorker */}
-    {(isScanning ? [1, 2, 3] : tenders.slice(0, 3)).map((bid, i) => (
+    {(isScanning ? [1, 2, 3, 4] : tenders.slice(0, 4)).map((bid, i) => (
       <div 
         key={i} 
         className={`flex items-center justify-between p-4 rounded-2xl border transition-all duration-500 
@@ -171,68 +171,38 @@ export const FrontPage: React.FC<FrontPageProps> = ({
   </div>
 </div>
 
-{/* 2. PIPELINE CHART (35%) - Labeled & High-Visibility */}
-<div className="flex-[3.5] bg-slate-900/20 border border-slate-800 rounded-3xl p-6 flex flex-col">
-  <h3 className="text-[10px] font-black uppercase tracking-[0.3em] text-slate-500 mb-6 text-center">System Velocity</h3>
-  <div className="flex-1">
-    <ResponsiveContainer width="100%" height="100%">
-      <BarChart data={chartData} margin={{ top: 20, right: 0, left: -20, bottom: 0 }}>
-        <XAxis 
-          dataKey="name" 
-          axisLine={false} 
-          tickLine={false} 
-          tick={{fill: '#94a3b8', fontSize: 9, fontWeight: 'bold'}} 
-          interval={0}
-        />
-        <Tooltip 
-          cursor={{fill: 'rgba(255,255,255,0.03)'}} 
-          contentStyle={{backgroundColor: '#0f172a', border: '1px solid #D4AF37', borderRadius: '12px'}} 
-          itemStyle={{color: '#f8fafc', fontSize: '13px', fontWeight: 'bold'}} 
-        />
-        <Bar dataKey="val" radius={[6, 6, 0, 0]} barSize={35} isAnimationActive={false}>
-          {/* LabelList puts the numbers directly on the bars */}
-          <LabelList 
-            dataKey="val" 
-            position="top" 
-            fill="#f8fafc" 
-            fontSize={13} 
-            fontWeight="bold"
-            offset={10}
-          />
-          {chartData.map((entry, index) => (
-            <Cell key={index} fill={entry.color} />
-          ))}
-        </Bar>
-      </BarChart>
-    </ResponsiveContainer>
-  </div>
+{/* 2. DIRECT INGESTION HUB (Right - 40%) */}
+  <div className="flex-[4] bg-slate-900/40 rounded-3xl p-6 relative overflow-hidden backdrop-blur-xl flex flex-col">
+    {/* Background Watermark */}
+    <div className="absolute -right-4 -bottom-4 text-[6rem] text-blue-500/5 font-black pointer-events-none italic select-none">
+      INGEST
+    </div>
+
+    <div className="relative z-10 flex flex-col h-full">
+      <div className="flex justify-between items-start mb-4">
+        <div>
+          <h2 className="text-xl font-black uppercase italic text-white tracking-tighter">Direct <span className="text-gold-500">Parser</span></h2>
+          <p className="text-slate-500 text-[8px] uppercase tracking-[0.2em] font-bold mt-1">Manual Document Ingestion</p>
+        </div>
+        <button 
+          onClick={onNavigateToDiscovery}
+          className="text-[8px] font-black text-gold-500/60 hover:text-gold-500 border border-gold-500/20 px-2 py-1 rounded-lg uppercase tracking-widest transition-all"
+        >
+          Hub →
+        </button>
+      </div>
+
+      <div className="flex-grow flex flex-col justify-center">
+        {/* The RfpInput component is now the centerpiece of this block */}
+        <div className="bg-slate-950/40 rounded-2xl p-2 border border-slate-800/50 shadow-inner">
+          <RfpInput onSubmit={onProcessRfp} />
+        </div>
+      </div>
+    </div>
   </div>
 </div>
 
-        {/* BOTTOM: STRATEGIC INGESTION HUB */}
-        <div className="h-[30%] grid grid-cols-2 gap-4">
-          <div 
-            onClick={onNavigateToDiscovery} 
-            className="group cursor-pointer bg-slate-900/60 border border-gold-500/20 rounded-3xl p-8 transition-all hover:bg-blue-900/20 relative overflow-hidden flex flex-col justify-center"
-          >
-            <div className="text-2xl mb-2">📡</div>
-            <h2 className="text-2xl font-black uppercase italic text-white tracking-tighter">Automated Discovery</h2>
-            <p className="text-slate-500 text-[10px] uppercase tracking-[0.3em] font-bold">Portal Scan Agent (GeM)</p>
-            <div className="absolute -right-6 -bottom-6 text-[8rem] text-blue-500/5 font-black group-hover:text-blue-500/10 transition-all">SCAN</div>
-          </div>
-
-          <div 
-            onClick={onDirectUpload} 
-            className="group cursor-pointer bg-slate-900/60 border border-gold-500/20 rounded-3xl p-8 transition-all hover:bg-blue-900/20 relative overflow-hidden flex flex-col justify-center"
-          >
-            <div className="text-2xl mb-2">📄</div>
-            <h2 className="text-2xl font-black uppercase italic text-white-500 tracking-tighter">Direct Ingestion</h2>
-            <p className="text-slate-500 text-[10px] uppercase tracking-[0.3em] font-bold">URL / PDF Deep Parser</p>
-            <div className="absolute -right-6 -bottom-6 text-[8rem] text-blue-500/5 font-black group-hover:text-blue-500/10 transition-all">DEEP</div>
-          </div>
-        </div>
-      </div>
-
+</div>
        {/* --- RIGHT HUD: VERTICAL AGENTIC ORCHESTRATION --- */}
 <div className="flex-[1.5] bg-slate-900/20 border border-slate-800 rounded-3xl p-8 relative flex flex-col shadow-2xl overflow-hidden min-h-full">
   <div className="text-[13px] font-white uppercase tracking-widest text-center mb-8 border-b border-slate-800 pb-4 shrink-0">

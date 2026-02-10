@@ -1,5 +1,4 @@
 import React, { useState, useCallback,useEffect } from 'react';
-import { RfpListScreen } from './components/RfpListScreen';
 import { LogScreen } from './components/LogScreen';
 import { ConfigScreen } from './components/ConfigScreen';
 import { AnalysisScreen } from './components/AnalysisScreen';
@@ -25,11 +24,14 @@ import { initialConfig } from '../data/configData';
     Backend Service (Frontend → Backend ONLY)
 ------------------------------------------------------------------- */
 const apiService = {
-  parseRFP: async (rfpContent: string) => {
+  parseRFP: async (rfpContent: string, inventory: any[]) => { // Add inventory parameter here
     const res = await fetch('http://localhost:3001/api/parse-rfp', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ content: rfpContent }),
+      body: JSON.stringify({ 
+        content: rfpContent, 
+        inventory // Shorthand now works because 'inventory' is in the function scope
+      }),
     });
 
     if (!res.ok) {
@@ -161,7 +163,7 @@ useEffect(() => {
         addLog('PARSING_ENGINE', 'Sending document to backend');
         
         //const backendResult = await apiService.parseRFP(rfp.rawDocument);
-        const backendResult = await apiService.parseRFP(contentToParse);
+        const backendResult = await apiService.parseRFP(contentToParse,inventory);
         
         
         addLog('PARSING_ENGINE', 'Backend completed', backendResult);
@@ -177,7 +179,36 @@ useEffect(() => {
         addLog('SYSTEM', err.message || 'Processing failed');
       }
     };
+/* Inside App.tsx */
+/* Inside App.tsx */
 
+const handleProcessRfp = (data: { source: 'URL' | 'File'; content: string; fileName?: string }) => {
+  // 1. Log the ingestion start
+  addLog('SYSTEM', `Manual Ingestion Started: Source [${data.source}] ${data.fileName || ''}`);
+
+  // 2. Create a new RFP object to store the ingested data
+  const tempId = `TDR-MANUAL-${Date.now()}`;
+  const newRfp: Rfp = {
+    id: tempId,
+    organisation: 'Manual Ingestion',
+    bidType: 'Parsing...',
+    closingDate: new Date(),
+    status: 'Pending',
+    rawDocument: data.content,
+    source: data.source,
+    fileName: data.fileName,
+    agentOutputs: {},
+  };
+
+  // 3. Update state and REDIRECT
+  setRfps(prev => [newRfp, ...prev]);
+  setProcessingStartTime(new Date());
+  setSelectedRfpId(tempId);
+  setCurrentView('processing'); // This triggers the redirect to the processing screen
+
+  // 4. Start the actual backend processing
+  processRfp(tempId, newRfp);
+};
   /* -------------------- Navigation Helpers -------------------- */
   const handleStartProcessing = (rfpId: string, rfpObject?: Rfp) => {
     setProcessingStartTime(new Date());
@@ -224,7 +255,7 @@ useEffect(() => {
   return (
     <FrontPage 
       onNavigateToDiscovery={() => setCurrentView('discovery')}
-      onDirectUpload={() => setCurrentView('rfps')}
+      onProcessRfp={handleProcessRfp}
       tenders={discoveryResults}
       isScanning={isDiscoveryScanning} // Pass the scanning state
       onProcessDiscovery={(url) => {
@@ -291,32 +322,31 @@ useEffect(() => {
             onViewResults={() => handleViewAnalysis(selectedRfp.id)}
             onBack={handleBackToList}
             processingStartTime={processingStartTime}
+            priorPhasesDuration={0}
           />
         ) : null;
-
-      case 'rfps':
-      default:
-        return (
-          <RfpListScreen
-            rfps={rfps}
-            onProcessRfp={addRfp}
-            onProcessExistingRfp={handleStartProcessing}
-            onViewAnalysis={handleViewAnalysis}
-          />
-        );
     }
   };
 
-  return (
-    <div className="min-h-screen font-sans bg-slate-950 text-slate-50">
-      {/* 3. Navigation Header - Pass 'frontpage' to the header for highlighting */}
-      <Header 
-        currentView={currentView as View} 
-        setCurrentView={(view) => setCurrentView(view)} 
-      />
-      <main className="w-full h-full p-2 md:p-4">
+ return (
+   
+    <div className="h-screen w-full bg-slate-950 flex flex-col overflow-hidden font-sans">
+    
+    <Header currentView={currentView} setCurrentView={setCurrentView} />
+
+    <main className="flex-grow relative overflow-hidden">
+
+      <div className="absolute top-0 right-0 w-[600px] h-[600px] bg-gold-500/5 blur-[150px] rounded-full pointer-events-none" />
+      
+      <div className="h-full w-full p-8 relative z-10 overflow-hidden">
         {renderContent()}
-      </main>
+      </div>
+    </main>
+
+      <style>{`
+        .scrollbar-hide::-webkit-scrollbar { display: none; }
+        .scrollbar-hide { -ms-overflow-style: none; scrollbar-width: none; }
+      `}</style>
     </div>
   );
 };

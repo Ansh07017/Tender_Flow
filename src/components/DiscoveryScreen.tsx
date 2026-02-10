@@ -1,6 +1,5 @@
 import React, { useState } from 'react';
-import { SKU,Tender,DiscoveryFilters} from '../../types';
-
+import { SKU, Tender, DiscoveryFilters } from '../../types';
 
 interface DiscoveryScreenProps {
   inventory: SKU[];
@@ -10,241 +9,160 @@ interface DiscoveryScreenProps {
   results: Tender[];
 }
 
-const portals = [
-  { id: 'gem', name: 'GeM Portal', icon: '🏛️' },
-  { id: 'nexarc', name: 'Tata Nexarc', icon: '🏢' },
-  { id: 'cppp', name: 'CPPP Portal', icon: '🇮🇳' }
-];
-
 export const DiscoveryScreen: React.FC<DiscoveryScreenProps> = ({ 
-results = [],
-onSearch, 
-onProcessDiscovery,
-isScanning,
+  results = [],
+  onSearch, 
+  onProcessDiscovery,
+  isScanning,
 }) => {
-  const [selectedPortal, setSelectedPortal] = useState('gem');
   const [category, setCategory] = useState('');
   
-  // Qualification Agent State
-  const [radius, setRadius] = useState(500);
-  const [deliveryType, setDeliveryType] = useState<'Pan India' | 'Intra State' | 'Zonal'>('Pan India');
+  // Logistics & Financial State
+  const [manualAvgKms, setManualAvgKms] = useState(400);
+  const [manualRatePerKm, setManualRatePerKm] = useState(55);
   const [allowEMD, setAllowEMD] = useState(false);
   const [minMatchThreshold, setMinMatchThreshold] = useState(20);
+  const [deliveryType, setDeliveryType] = useState<'Pan India' | 'Intra State' | 'Zonal'>('Pan India');
 
   const handleSearchTrigger = () => {
     if (!category) return;
-    onSearch(selectedPortal, category, {
-      radius,
-      deliveryType,
+    onSearch('gem', category, {
+      manualAvgKms,
+      manualRatePerKm,
       allowEMD,
-      minMatchThreshold
+      minMatchThreshold,
+      deliveryType,
+      categories: [category]
     });
   };
 
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
-      {/* --- SIDEBAR: QUALIFICATION AGENT CONTROLS --- */}
-      <div className="lg:col-span-1 space-y-4">
-        <div className="bg-base-200 p-5 rounded-xl border border-base-300 shadow-sm h-full">
-          <h3 className="text-sm font-bold uppercase tracking-wider text-ink-700 mb-6 flex items-center gap-2 border-b border-base-300 pb-2">
-            ⚙️ Qualification Agent
+    <div className="h-[calc(100vh-140px)] flex flex-col lg:flex-row gap-6 overflow-hidden text-slate-200">
+      
+      {/* --- SIDEBAR: LOGISTICS COMMAND --- */}
+      <div className="w-full lg:w-80 flex flex-col h-full bg-slate-900/40 border border-slate-800 rounded-3xl backdrop-blur-xl shadow-2xl overflow-hidden">
+        <div className="p-6 border-b border-slate-800/50">
+          <h3 className="text-xs font-black uppercase tracking-[0.3em] text-gold-500 flex items-center gap-2">
+            Master Qualification
           </h3>
-          
-          <div className="space-y-8">
-            {/* 1. Logistics & Distance */}
-            <div className="space-y-3">
-              <div className="flex justify-between items-end">
-                <label className="text-xs font-bold text-ink-500 uppercase">Max Radius</label>
-                <span className="text-accent-700 font-bold text-sm">{radius} km</span>
-              </div>
-              <input 
-                type="range" min="0" max="2000" step="50"
-                value={radius} onChange={(e) => setRadius(Number(e.target.value))}
-                className="w-full h-1.5 bg-base-300 rounded-lg appearance-none cursor-pointer accent-accent-700"
-              />
-              <div className="grid grid-cols-1 gap-2 mt-2">
-                {(['Pan India', 'Intra State', 'Zonal'] as const).map(type => (
-                  <button 
-                    key={type}
-                    onClick={() => setDeliveryType(type)}
-                    className={`text-[10px] py-2 px-2 rounded border font-bold transition-all ${
-                      deliveryType === type 
-                        ? 'bg-accent-700 text-white border-accent-700 shadow-sm' 
-                        : 'bg-base-100 text-ink-500 border-base-300 hover:bg-base-300'
-                    }`}
-                  >
-                    {type}
-                  </button>
-                ))}
-              </div>
+        </div>
+        
+        <div className="flex-grow overflow-y-auto p-6 space-y-8 scrollbar-hide">
+          {/* Distance Logic - Increased Label Size */}
+          <div className="space-y-4">
+            <div className="flex justify-between items-end">
+              <label className="text-xs font-black text-slate-300 uppercase tracking-widest">Avg. Distance</label>
+              <span className="text-gold-500 font-mono font-bold text-sm">{manualAvgKms} KM</span>
             </div>
+            <input 
+              type="range" min="50" max="2500" step="50"
+              value={manualAvgKms} onChange={(e) => setManualAvgKms(Number(e.target.value))}
+              className="w-full h-1.5 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-gold-500"
+            />
+          </div>
 
-            {/* 2. Financial Compliance */}
-            <div className="space-y-3 pt-4 border-t border-base-300">
-              <label className="text-xs font-bold text-ink-500 uppercase">Financial Risk</label>
-              <label className="flex items-center gap-3 p-3 bg-base-100 rounded-lg border border-base-300 cursor-pointer hover:bg-base-50 transition-colors">
-                <input 
-                  type="checkbox" checked={allowEMD} 
-                  onChange={(e) => setAllowEMD(e.target.checked)}
-                  className="w-4 h-4 rounded border-base-300 text-accent-700 focus:ring-accent-700"
-                />
-                <span className="text-xs font-semibold text-ink-700">Allow EMD/ePBG Bids</span>
-              </label>
+          {/* Freight Logic */}
+          <div className="space-y-4 pt-4 border-t border-slate-800/30">
+            <div className="flex justify-between items-end">
+              <label className="text-xs font-black text-slate-300 uppercase tracking-widest">Freight Rate</label>
+              <span className="text-gold-500 font-mono font-bold text-sm">₹{manualRatePerKm}/KM</span>
             </div>
+            <input 
+              type="range" min="10" max="150" step="5"
+              value={manualRatePerKm} onChange={(e) => setManualRatePerKm(Number(e.target.value))}
+              className="w-full h-1.5 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-gold-500"
+            />
+            <div className="p-4 bg-slate-950 border border-gold-500/20 rounded-xl">
+              <p className="text-[10px] text-gold-500 font-black uppercase tracking-tighter mb-1">Total Logistics Load</p>
+              <p className="text-xl font-mono font-bold text-white tracking-tighter">₹{(manualAvgKms * manualRatePerKm).toLocaleString()}</p>
+            </div>
+          </div>
 
-            {/* 3. Technical Threshold */}
-            <div className="space-y-3 pt-4 border-t border-base-300">
-              <div className="flex justify-between">
-                <label className="text-xs font-bold text-ink-500 uppercase">Min SKU Match</label>
-                <span className="text-accent-700 font-bold text-sm">{minMatchThreshold}%</span>
-              </div>
-              <input 
-                type="range" min="0" max="100" step="5"
-                value={minMatchThreshold} onChange={(e) => setMinMatchThreshold(Number(e.target.value))}
-                className="w-full h-1.5 bg-base-300 rounded-lg appearance-none cursor-pointer accent-accent-700"
-              />
-              <p className="text-[10px] text-ink-400 italic">
-                Suggesting bids where at least {minMatchThreshold}% of items are in stock.
-              </p>
+          {/* Regional Scope - FIXED BUTTON VISIBILITY */}
+          <div className="space-y-4 pt-6 border-t border-slate-800/30">
+            <label className="text-xs font-black text-slate-300 uppercase tracking-widest">Regional Scope</label>
+            <div className="grid grid-cols-1 gap-2">
+              {(['Pan India', 'Intra State', 'Zonal'] as const).map(type => (
+                <button 
+                  key={type}
+                  onClick={() => setDeliveryType(type)}
+                  className={`text-[10px] py-3 px-3 rounded-xl border font-black uppercase tracking-widest transition-all ${
+                    deliveryType === type 
+                      ? 'bg-gold-500 border-gold-500 shadow-[0_0_15px_rgba(212,175,55,0.3)]' 
+                      : 'bg-slate-950 border-slate-700 text-slate-300 hover:border-gold-500/50 hover:text-white'
+                  }`}
+                >
+                  {type}
+                </button>
+              ))}
             </div>
           </div>
         </div>
       </div>
 
-      {/* --- MAIN AREA: PORTALS & RESULTS --- */}
-      <div className="lg:col-span-3 space-y-6">
-        <div className="bg-base-200 p-6 rounded-xl border border-base-300 shadow-sm">
-          <div className="grid grid-cols-3 gap-4 mb-6">
-            {portals.map(portal => (
-              <button
-                key={portal.id}
-                onClick={() => setSelectedPortal(portal.id)}
-                className={`p-4 border-2 rounded-xl flex flex-col items-center gap-2 transition-all ${
-                  selectedPortal === portal.id 
-                    ? 'border-accent-700 bg-white text-accent-700 shadow-md' 
-                    : 'border-transparent bg-base-100 text-ink-500 hover:bg-base-300'
-                }`}
-              >
-                <span className="text-3xl">{portal.icon}</span>
-                <span className="font-bold text-xs uppercase tracking-tighter">{portal.name}</span>
-              </button>
-            ))}
-          </div>
-
-          <div className="flex gap-2">
+      {/* --- MAIN AREA: GeM DISCOVERY --- */}
+      <div className="flex-grow flex flex-col h-full space-y-6 overflow-hidden">
+        
+        {/* ROW 1: SEARCH */}
+        <div className="shrink-0">
+          <div className="bg-slate-900/40 p-6 rounded-3xl border border-slate-800 backdrop-blur-xl shadow-2xl flex gap-4">
             <input
               type="text"
-              placeholder={`Search ${selectedPortal.toUpperCase()} by category (e.g. Industrial AC)...`}
+              placeholder="Enter Procurement Category (e.g. Cables)..."
               value={category}
               onChange={(e) => setCategory(e.target.value)}
-              className="flex-grow p-4 bg-base-100 border border-base-300 rounded-xl focus:ring-2 focus:ring-accent-700 outline-none font-medium"
+              className="flex-grow p-4 bg-slate-950 border border-slate-800 rounded-2xl focus:border-gold-500 outline-none font-bold text-white transition-all placeholder:text-slate-500 text-sm"
             />
             <button 
               onClick={handleSearchTrigger}
               disabled={isScanning || !category}
-              className="bg-accent-700 text-white px-10 py-4 rounded-xl font-bold hover:bg-accent-800 disabled:bg-base-300 flex items-center gap-2 shadow-lg transition-all active:scale-95"
+              className="bg-white text-slate-950 px-6 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all shadow-[0_0_20px_rgba(212,175,55,0.3)]"
             >
-              {isScanning ? (
-                <><div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" /> Scanning...</>
-              ) : (
-                'Run Agent Scan'
-              )}
+              {isScanning ? 'Scraping GeM...' : 'Run Discovery'}
             </button>
           </div>
         </div>
 
-              
-{isScanning && (
-  <div className="bg-black text-green-400 p-4 rounded-xl font-mono text-[10px] mb-6 shadow-inner border border-base-300">
-    <div className="flex items-center gap-2 mb-2 border-b border-green-900 pb-1">
-      <span className="animate-pulse">●</span> LIVE AGENT TELEMETRY
-    </div>
-    <div className="space-y-1">
-      <p>[{new Date().toLocaleTimeString()}] [MASTER_AGENT] Delegating to GEM_WORKER...</p>
-      <p className="text-blue-400">[{new Date().toLocaleTimeString()}] [SALES_AGENT] Scanning portal for "{category}"...</p>
-      <p className="text-yellow-400">[{new Date().toLocaleTimeString()}] [SALES_AGENT] Found 10 potential RFPs. Analyzing dates...</p>
-      <p className="text-green-500 animate-bounce">[{new Date().toLocaleTimeString()}] [QUALIFICATION_AGENT] 10 Bids Qualified for Jalandhar Branch.</p>
-    </div>
-  </div>
-)}
-
-        {(results || []).length > 0 && (
-          <div className="space-y-4 animate-in fade-in slide-in-from-bottom-4 duration-500">
-            <h3 className="text-lg font-bold text-ink-700 flex items-center gap-2 px-2">
-              🎯 Qualified Recommendations
-            </h3>
-            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-              {results.slice(0, 3).map((bid) => (
-                <div key={bid.id} className="bg-white border-2 border-accent-700 rounded-2xl p-6 shadow-xl relative flex flex-col hover:shadow-2xl transition-shadow">
-                  <div className="absolute top-0 right-0 bg-accent-700 text-white text-[9px] font-black px-4 py-1.5 rounded-bl-xl uppercase tracking-widest">
-                    Best Match
+        {/* ROW 2: RESULTS */}
+        <div className="flex-grow overflow-y-auto pr-2 scrollbar-hide pb-4">
+          {(results || []).length > 0 ? (
+            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
+              {results.map((bid) => (
+                <div key={bid.id} className="bg-slate-900/40 border border-slate-800 rounded-3xl p-6 flex flex-col relative group hover:border-gold-500/50 transition-all backdrop-blur-md overflow-hidden min-h-[220px]">
+                  {/* Badge Fix */}
+                  <div className="absolute top-0 right-0 bg-emerald-600 text-white text-[10px] font-black px-4 py-1.5 rounded-bl-xl uppercase tracking-widest shadow-lg z-10">
+                    Qualified
                   </div>
                   
-                  <div className="mb-4">
-                    <div className="text-xs font-bold text-success-600 uppercase tracking-tight">{bid.matchScore}% Win Probability</div>
-                    <h4 className="font-bold text-ink-900 line-clamp-2 mt-1 leading-tight h-10">{bid.title}</h4>
+                  <div className="mb-4 pt-2">
+                    <div className="text-[10px] font-black text-emerald-500 uppercase tracking-widest mb-2">{bid.matchScore}% Stock Match</div>
+                    <h4 className="font-bold text-white text-base leading-snug group-hover:text-gold-500 transition-colors line-clamp-2 h-10">{bid.title}</h4>
                   </div>
                   
-                  <div className="space-y-2 mb-6 text-xs text-ink-500 font-medium">
-                    <div className="flex items-center gap-2">🏢 <span>{bid.org}</span></div>
-                    <div className="flex items-center gap-2">📅 <span>Ends: {bid.endDate}</span></div>
-                    <div className="flex items-center gap-2">📍 <span>Distance: {bid.distance || 120} km</span></div>
-                  </div>
-
-                  <div className="flex flex-wrap gap-2 mb-6 mt-auto">
-                    <span className={`text-[9px] font-black px-2 py-1 rounded-md uppercase border ${
-                      bid.risk === 'Low' ? 'bg-success-50 text-success-700 border-success-200' : 'bg-warning-50 text-warning-700 border-warning-200'
-                    }`}>
-                      {bid.risk === 'Low' ? '🛡️ Low Risk' : '⚠️ Med Risk'}
-                    </span>
-                    {bid.inStock && (
-                      <span className="text-[9px] font-black bg-blue-50 text-blue-700 px-2 py-1 rounded-md uppercase border border-blue-200">
-                        📦 In Stock
-                      </span>
-                    )}
+                  <div className="space-y-2 mb-6 text-[10px] text-slate-400 font-bold uppercase tracking-widest">
+                    <div className="flex items-center gap-3">🏢 <span className="truncate">{bid.org}</span></div>
+                    <div className="flex items-center gap-3">📅 {bid.endDate}</div>
                   </div>
 
                   <button 
                     onClick={() => onProcessDiscovery(bid.url)}
-                    className="w-full bg-accent-700 text-white py-3 rounded-xl font-bold text-xs hover:bg-accent-800 shadow-md transition-all active:scale-95"
+                    className="w-full bg-slate-950 border border-slate-800 text-white py-4 rounded-xl font-black text-[10px] uppercase tracking-widest hover:bg-gold-500 hover:text-slate-150 transition-all mt-auto"
                   >
                     Initiate Deep Analysis
                   </button>
                 </div>
               ))}
             </div>
-
-            {/* Other Results Table */}
-            <div className="bg-base-200 border border-base-300 rounded-xl overflow-hidden shadow-sm">
-              <table className="w-full text-sm text-left">
-                <thead className="bg-base-300 text-ink-700 font-bold">
-                  <tr>
-                    <th className="px-6 py-4">Other Bids Identified</th>
-                    <th className="px-6 py-4">Closing Date</th>
-                    <th className="px-6 py-4 text-right">Action</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-base-300 bg-white/50">
-                  {results.slice(3).map(bid => (
-                    <tr key={bid.id} className="hover:bg-base-100 transition-colors">
-                      <td className="px-6 py-4 font-semibold text-ink-800">{bid.title}</td>
-                      <td className="px-6 py-4 text-xs font-mono">{bid.endDate}</td>
-                      <td className="px-6 py-4 text-right">
-                        <button 
-                          onClick={() => onProcessDiscovery(bid.url)} 
-                          className="text-accent-700 font-black text-xs uppercase hover:underline"
-                        >
-                          Analyze
-                        </button>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+          ) : (
+            <div className="h-full flex flex-col items-center justify-center opacity-30">
+              <div className="text-6xl mb-4">🏛️</div>
+              <p className="font-black uppercase tracking-[0.4em] text-xs">Waiting for GeM Command</p>
             </div>
-          </div>
-        )}
+          )}
+        </div>
       </div>
+
+      <style>{`.scrollbar-hide::-webkit-scrollbar { display: none; }`}</style>
     </div>
   );
 };
