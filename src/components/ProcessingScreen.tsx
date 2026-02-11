@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useRef } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Rfp, LogEntry } from '../../types';
 
 interface ProcessingScreenProps {
@@ -6,7 +6,6 @@ interface ProcessingScreenProps {
   logs: LogEntry[];
   onViewResults: () => void;
   onBack: () => void;
-  // This should now represent the total time already spent in previous phases
   priorPhasesDuration: number; 
   processingStartTime: Date | null;
 }
@@ -24,30 +23,25 @@ export const ProcessingScreen: React.FC<ProcessingScreenProps> = ({
   onBack,
   priorPhasesDuration = 0,
 }) => {
-  // 1. STATE: Start with time inherited from previous phases (e.g., Discovery)
   const [totalElapsed, setTotalElapsed] = useState(priorPhasesDuration);
   const [newsIndex, setNewsIndex] = useState(0);
   const [isSnapshotOpen, setIsSnapshotOpen] = useState(false);
   
-  // Ref to track if the process is currently active on this screen
   const isProcessing = rfp.status !== 'Complete' && rfp.status !== 'Error';
+  const isExtractionDone = rfp.status === 'Complete';
 
-  // 2. CUMULATIVE TIMER LOGIC
+  // 1. CUMULATIVE TIMER
   useEffect(() => {
     let timer: NodeJS.Timeout;
-
     if (isProcessing) {
       timer = setInterval(() => {
         setTotalElapsed(prev => prev + 1);
       }, 1000);
     }
+    return () => { if (timer) clearInterval(timer); };
+  }, [isProcessing]);
 
-    return () => {
-      if (timer) clearInterval(timer);
-    };
-  }, [isProcessing]); // Pauses automatically when status hits 'Complete'
-
-  // 3. NEWS TICKER
+  // 2. NEWS TICKER
   useEffect(() => {
     const newsTicker = setInterval(() => {
       setNewsIndex(prev => (prev + 1) % INDUSTRY_NEWS.length);
@@ -55,120 +49,146 @@ export const ProcessingScreen: React.FC<ProcessingScreenProps> = ({
     return () => clearInterval(newsTicker);
   }, []);
 
-  const isExtractionDone = rfp.status === 'Complete';
-
   return (
-    <div className="fixed inset-0 bg-slate-950 text-slate-200 overflow-hidden font-sans">
-      {/* Background Glows (Matching Frontpage) */}
+    // FIX 1: Removed 'fixed inset-0' to prevent hiding under global header
+    <div className="h-full w-full bg-slate-950 text-slate-200 flex flex-col relative font-sans overflow-hidden">
+      
+      {/* Background Ambience */}
       <div className="absolute top-0 right-0 w-[500px] h-[500px] bg-gold-500/5 blur-[120px] rounded-full pointer-events-none" />
       <div className="absolute bottom-0 left-0 w-[500px] h-[500px] bg-blue-500/5 blur-[120px] rounded-full pointer-events-none" />
 
-      <div className="relative z-10 h-full flex flex-col p-8 max-w-7xl mx-auto">
+      <div className="relative z-10 h-full flex flex-col">
         
-        {/* Header Section with Pausable Cumulative Timer */}
-        <div className="flex justify-between items-end mb-12 border-b border-slate-800 pb-6">
+        {/* LOCAL HEADER: Now respects global header positioning */}
+        <div className="flex justify-between items-end mb-8 border-b border-slate-800 pb-6 shrink-0">
           <div>
-            <h1 className="text-4xl font-black tracking-tighter text-white mb-2">
-              ORCHESTRATING <span className="text-gold-500">ANALYSIS</span>
+            <h1 className="text-3xl font-black tracking-tighter text-white mb-1 uppercase italic">
+              Orchestrating <span className="text-gold-500">Analysis</span>
             </h1>
-            <p className="text-slate-500 font-mono text-xs uppercase tracking-[0.2em]">
+            <p className="text-slate-500 font-mono text-[10px] uppercase tracking-[0.2em] font-bold">
               Authorization: Ansh Pratap Singh // ID: {rfp.id}
             </p>
           </div>
           <div className="text-right">
-            <span className="block text-[10px] text-gold-500/60 uppercase font-black tracking-widest mb-1">
+            <span className="block text-[9px] text-gold-500/60 uppercase font-black tracking-widest mb-1">
               {isProcessing ? "Cumulative Process Time" : "Total Time Taken"}
             </span>
-            
-            <span className={`text-5xl font-light tracking-tighter transition-colors ${isProcessing ? 'text-white' : 'text-gold-500'}`}>
-              {totalElapsed}<span className="text-xl text-slate-600 ml-1">s</span>
+            <span className={`text-4xl font-light tracking-tighter transition-colors ${isProcessing ? 'text-white' : 'text-gold-500'}`}>
+              {totalElapsed}<span className="text-lg text-slate-600 ml-1 italic">s</span>
             </span>
           </div>
         </div>
 
-        {/* Main Command Center Grid */}
-        <div className="grid grid-cols-12 gap-8 flex-grow overflow-hidden mb-8">
+        {/* MAIN COMMAND GRID */}
+        <div className="grid grid-cols-12 gap-8 flex-grow overflow-hidden mb-6 min-h-0">
           
-          {/* Left Column: Agent Thought Stream (The Log Terminal) */}
-          <div className="col-span-5 flex flex-col bg-slate-900/40 border border-slate-800 rounded-2xl overflow-hidden shadow-2xl">
-            <div className="p-4 border-b border-slate-800 bg-slate-900/60 flex justify-between items-center">
+          {/* LEFT: LIVE LOG STREAM */}
+          <div className="col-span-5 flex flex-col bg-slate-900/40 border border-slate-800 rounded-3xl overflow-hidden shadow-2xl backdrop-blur-md">
+            <div className="p-4 border-b border-slate-800 bg-slate-900/60 flex justify-between items-center shrink-0">
               <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Agent Live Stream</span>
-              {!isProcessing && <span className="text-[8px] bg-green-500/20 text-green-500 px-2 py-0.5 rounded">STREAM_PAUSED</span>}
+              {!isProcessing && <span className="text-[8px] bg-emerald-500/20 text-emerald-500 px-2 py-0.5 rounded font-black">STABLE</span>}
             </div>
-            <div className="flex-grow p-6 font-mono text-xs overflow-y-auto space-y-4 scrollbar-hide">
-             {logs.map((log, i) => (
-  <div key={i} className="animate-fade-in opacity-80 hover:opacity-100 transition-opacity">
-    {/* Convert Date to String using toLocaleTimeString() */}
-    <span className="text-gold-500/50 mr-2">
-      [{log.timestamp instanceof Date 
-        ? log.timestamp.toLocaleTimeString() 
-        : log.timestamp}]
-    </span>
-    <span className="text-blue-400 uppercase mr-2">{log.agent}:</span>
-    <span className="text-slate-300">{log.message}</span>
-  </div>
-))}
+            <div className="flex-grow p-6 font-mono text-[11px] overflow-y-auto space-y-3 scrollbar-hide">
+              {logs.map((log, i) => (
+                <div key={i} className="animate-fade-in opacity-80 hover:opacity-100 transition-opacity flex gap-3">
+                  <span className="text-gold-500/50 shrink-0">
+                    [{log.timestamp instanceof Date ? log.timestamp.toLocaleTimeString() : log.timestamp}]
+                  </span>
+                  <div className="flex flex-col">
+                    <span className="text-blue-400 uppercase font-black tracking-tighter text-[9px]">{log.agent}:</span>
+                    <span className="text-slate-300 leading-relaxed italic">{log.message}</span>
+                  </div>
+                </div>
+              ))}
               {isProcessing && (
-                <div className="animate-pulse text-gold-500">_ EXECUTING_EXTRACTION_LOGIC...</div>
+                <div className="animate-pulse text-gold-500 text-[10px] font-black mt-2">_ EXECUTING_EXTRACTION_LOGIC...</div>
               )}
             </div>
           </div>
 
-          {/* Right Column: Industry News (The 70% Wait Time Solution) */}
-          <div className="col-span-7 relative">
+          {/* RIGHT: CONTENT PANEL */}
+          <div className="col-span-7 flex flex-col min-h-0">
             {!isExtractionDone ? (
-              <div className="h-full flex flex-col justify-center p-12 bg-gradient-to-br from-slate-900/60 to-slate-950 border border-slate-800 rounded-2xl shadow-inner relative overflow-hidden">
+              <div className="h-full flex flex-col justify-center p-12 bg-slate-900/40 border border-slate-800 rounded-3xl shadow-inner relative overflow-hidden backdrop-blur-md">
                 <div className="absolute top-0 left-0 w-full h-1 bg-slate-800">
                   <div className="h-full bg-gold-500 animate-[loading_6s_linear_infinite]" style={{width: '30%'}} />
                 </div>
                 <span className="text-gold-500 font-black text-[10px] tracking-[0.3em] uppercase mb-6 block">Industry Intelligence Feed</span>
-                <h2 className="text-3xl font-bold text-white mb-4 leading-tight">{INDUSTRY_NEWS[newsIndex].title}</h2>
-                <p className="text-lg text-slate-400 font-light leading-relaxed mb-8">{INDUSTRY_NEWS[newsIndex].detail}</p>
+                <h2 className="text-3xl font-bold text-white mb-4 leading-tight uppercase italic">{INDUSTRY_NEWS[newsIndex].title}</h2>
+                <p className="text-lg text-slate-400 font-medium leading-relaxed italic">{INDUSTRY_NEWS[newsIndex].detail}</p>
               </div>
             ) : (
-              /* Extraction Snapshot Preview */
               <div 
                 onClick={() => setIsSnapshotOpen(true)}
-                className="h-full group cursor-pointer flex flex-col items-center justify-center p-12 bg-gold-500/5 border border-gold-500/20 rounded-2xl transition-all hover:bg-gold-500/10 hover:border-gold-500/40"
+                className="h-full group cursor-pointer flex flex-col items-center justify-center p-12 bg-gold-500/5 border border-gold-500/20 rounded-3xl transition-all hover:bg-gold-500/10 hover:border-gold-500/40 backdrop-blur-md"
               >
-                <div className="w-20 h-20 rounded-full bg-gold-500 flex items-center justify-center mb-6 shadow-[0_0_40px_rgba(212,175,55,0.3)]">
-                  <svg className="w-10 h-10 text-slate-950" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                <div className="w-16 h-16 rounded-full bg-gold-500 flex items-center justify-center mb-6 shadow-[0_0_40px_rgba(212,175,55,0.4)] transition-transform group-hover:scale-110">
+                  <svg className="w-8 h-8 text-slate-950" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" /></svg>
                 </div>
-                <h2 className="text-2xl font-bold text-white mb-2 uppercase tracking-tighter">Phase Extraction Successful</h2>
-                <p className="text-slate-400 mb-6 text-center">Data validated. Total processing time locked at {totalElapsed}s.</p>
-                <span className="text-gold-500 text-[10px] font-black uppercase tracking-widest border-b border-gold-500/30 pb-1">Review Technical Snapshot →</span>
+                <h2 className="text-2xl font-black text-white mb-2 uppercase tracking-tighter">Phase Extraction Successful</h2>
+                <p className="text-slate-400 mb-6 text-center italic">Data validated. Processing duration locked at {totalElapsed}s.</p>
+                <span className="text-gold-500 text-[10px] font-black uppercase tracking-widest border-b-2 border-gold-500/30 pb-1">Review Technical Snapshot →</span>
               </div>
             )}
           </div>
         </div>
 
-        {/* Action Footer: The Gateway to the next phase */}
-        <div className="flex justify-between items-center py-6 border-t border-slate-900">
-          <button onClick={onBack} className="text-slate-500 hover:text-white transition-colors text-xs font-bold uppercase tracking-widest">← Abort</button>
+        {/* FOOTER: Global Navigation Fix */}
+        <div className="flex justify-between items-center py-6 border-t border-slate-900 shrink-0">
+          <button onClick={onBack} className="text-slate-600 hover:text-white transition-colors text-[10px] font-black uppercase tracking-widest">← Abort Pipeline</button>
           
+          {/* FIX 2 & 3: Forward Navigation Button */}
           {isExtractionDone && (
             <button 
               onClick={onViewResults}
-              className="group relative px-12 py-4 bg-gold-500 text-slate-950 font-black uppercase tracking-widest rounded-xl overflow-hidden transition-all hover:shadow-[0_0_30px_rgba(212,175,55,0.4)]"
+              className="group relative px-12 py-4 bg-white text-slate-950 font-black uppercase text-[10px] tracking-widest rounded-xl overflow-hidden transition-all hover:shadow-[0_0_30px_rgba(255,255,255,0.3)] shadow-lg"
             >
-              <div className="absolute inset-0 bg-white/20 translate-x-[-100%] group-hover:translate-x-[100%] transition-transform duration-500" />
-              <span className="relative z-10">Initiate Analysis Results →</span>
+              <div className="absolute inset-0 bg-gold-500/20 translate-x-[-100%] group-hover:translate-x-[100%] transition-transform duration-500" />
+              <span className="relative z-10">Initiate Deep Analysis →</span>
             </button>
           )}
         </div>
       </div>
 
-      {/* SNAPSHOT OVERLAY */}
+      {/* SNAPSHOT OVERLAY: Improved Exit and Direct Forward Path */}
       {isSnapshotOpen && (
-        <div className="fixed inset-0 z-50 bg-slate-950/95 backdrop-blur-xl animate-fade-in flex flex-col">
-          <div className="p-8 border-b border-slate-800 flex justify-between items-center">
-            <h2 className="text-xl font-black text-white uppercase tracking-widest">RFP Raw Data Fragment</h2>
-            <button onClick={() => setIsSnapshotOpen(false)} className="w-10 h-10 rounded-full bg-slate-900 border border-slate-700 text-white">✕</button>
-          </div>
-          <div className="flex-grow overflow-y-auto p-12">
-            <pre className="text-xs text-blue-300 bg-slate-900/50 p-8 rounded-2xl border border-blue-500/20 font-mono whitespace-pre-wrap">
-              {JSON.stringify(rfp.agentOutputs?.parsedData, null, 2)}
-            </pre>
+        <div className="fixed inset-0 z-[100] bg-slate-950/95 backdrop-blur-3xl flex flex-col p-8">
+          <div className="max-w-6xl mx-auto w-full flex flex-col h-full bg-slate-900/50 border border-slate-800 rounded-[40px] overflow-hidden shadow-2xl">
+            <div className="p-8 border-b border-slate-800 flex justify-between items-center bg-slate-900/40">
+              <div className="space-y-1">
+                <h2 className="text-2xl font-black text-white uppercase italic tracking-tighter">Extraction <span className="text-gold-500">Fragment</span></h2>
+                <p className="text-[10px] text-slate-500 uppercase tracking-widest font-bold">Raw Telemetry & Extracted Metadata</p>
+              </div>
+              {/* EXIT STRATEGY: Clear 'X' button */}
+              <button 
+                onClick={() => setIsSnapshotOpen(false)} 
+                className="w-12 h-12 rounded-2xl bg-slate-950 border border-slate-800 text-white hover:border-gold-500 hover:text-gold-500 transition-all flex items-center justify-center text-xl font-black"
+              >
+                ✕
+              </button>
+            </div>
+            
+            <div className="flex-grow overflow-y-auto p-12 scrollbar-hide">
+              <pre className="text-[11px] text-blue-300 bg-slate-950/80 p-8 rounded-3xl border border-gold-500/10 font-mono whitespace-pre-wrap leading-relaxed shadow-inner">
+                {JSON.stringify(rfp.agentOutputs?.parsedData, null, 4)}
+              </pre>
+            </div>
+
+            {/* SNAPSHOT FOOTER ACTIONS: Direct Forward Path */}
+            <div className="p-8 border-t border-slate-800 bg-slate-900/40 flex justify-center gap-6">
+              <button 
+                onClick={() => setIsSnapshotOpen(false)}
+                className="px-10 py-3 bg-slate-800 text-white text-[10px] font-black uppercase tracking-widest rounded-xl hover:bg-slate-700 transition-all shadow-md"
+              >
+                Close Fragment
+              </button>
+              <button 
+                onClick={() => { setIsSnapshotOpen(false); onViewResults(); }}
+                className="px-10 py-3 bg-gold-500 text-slate-950 text-[10px] font-black uppercase tracking-widest rounded-xl hover:bg-white transition-all shadow-lg shadow-gold-500/30"
+              >
+                Proceed to Analysis →
+              </button>
+            </div>
           </div>
         </div>
       )}

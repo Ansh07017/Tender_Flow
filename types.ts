@@ -178,6 +178,7 @@ export interface FinancialAgentResult {
     confidenceScore: number;
     requiresManualInput: boolean;
     recommendation: string;
+    finalBidValue: number;
   };
   riskEntries: {
     category: "Financial" | "Logistics";

@@ -170,7 +170,10 @@ useEffect(() => {
         updateRfpState(rfpId, {
           status: 'Complete',
           activeAgent: 'FINALIZING_AGENT',
-          agentOutputs: backendResult,
+          agentOutputs: {
+    parsedData: backendResult.parsedData, 
+    technicalAnalysis: backendResult.technicalAnalysis, 
+    pricing: backendResult.financialAnalysis },
           processingDuration: Math.round((Date.now() - startTime) / 1000),
         });
         addLog('FINALIZING_AGENT', 'Report finalized');
@@ -218,6 +221,7 @@ const handleProcessRfp = (data: { source: 'URL' | 'File'; content: string; fileN
   };
 
   const handleViewAnalysis = (rfpId: string) => {
+    console.log("Navigating to Analysis for:", rfpId);
     setSelectedRfpId(rfpId);
     setCurrentView('analysis');
   };

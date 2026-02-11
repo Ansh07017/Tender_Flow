@@ -188,7 +188,7 @@ export const FrontPage: React.FC<FrontPageProps> = ({
           onClick={onNavigateToDiscovery}
           className="text-[8px] font-black text-gold-500/60 hover:text-gold-500 border border-gold-500/20 px-2 py-1 rounded-lg uppercase tracking-widest transition-all"
         >
-          Hub →
+          Discover →
         </button>
       </div>
 

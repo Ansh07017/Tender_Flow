@@ -135,7 +135,7 @@ app.post("/api/parse-rfp", async (req: Request, res: Response) => {
           parsedData,
 
           technicalAnalysis: {
-            lineItemAnalyses: [],
+            itemAnalyses: [],
           },
 
           pricing: {},
@@ -164,8 +164,8 @@ app.post("/api/parse-rfp", async (req: Request, res: Response) => {
        4️⃣ Financial Agent (guarded)
     -------------------------------- */
     const hasLineItems =
-  technicalResult?.lineItemAnalyses &&
-  technicalResult.lineItemAnalyses.length > 0;
+  technicalResult?.itemAnalyses &&
+  technicalResult.itemAnalyses.length > 0;
 
 
   const defaultFilters = {
@@ -176,7 +176,7 @@ app.post("/api/parse-rfp", async (req: Request, res: Response) => {
 };
 const financialResult = hasLineItems
   ? runFinancialAgent(
-      technicalResult.lineItemAnalyses, 
+      technicalResult.itemAnalyses, 
       parsedData,
       filters||defaultFilters,
     )
@@ -188,13 +188,10 @@ const financialResult = hasLineItems
     res.json({
       data: {
         parsedData,
-
         technicalAnalysis: {
-          lineItemAnalyses: technicalResult.lineItemAnalyses ?? [],
+          itemAnalyses: technicalResult.itemAnalyses ?? [],
         },
-
-        pricing: financialResult.pricing ?? {},
-
+        pricing: financialResult || { pricing: {}, riskEntries: [], summary: {} },
         riskAnalysis: [
           ...(technicalResult.riskEntries ?? []),
           ...(financialResult.riskEntries ?? []),
