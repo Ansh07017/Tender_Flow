@@ -8,6 +8,7 @@ import { Header } from './components/Header';
 import { StoreScreen } from './components/StoreScreen';
 import { FrontPage } from './components/Frontpage';
 import { productInventory as initialInventory } from '../data/storeData';
+import { HelperBot } from './components/Helperbot';
 
 import type { View, Tender } from '../types';
 import {
@@ -316,7 +317,20 @@ const handleProcessRfp = (data: { source: 'URL' | 'File'; content: string; fileN
         );
 
       case 'analysis':
-        return selectedRfp ? <AnalysisScreen rfp={selectedRfp} onBack={handleBackToList} /> : null;
+  return selectedRfp ? (
+    <AnalysisScreen 
+      rfp={selectedRfp} 
+      // 1. BACK BUTTON -> Goes to Processing Screen (Snapshot)
+      onBack={() => setCurrentView('processing')} 
+      
+      // 2. CANCEL BUTTON -> Goes to Frontpage (Resets selection)
+      onCancel={() => {
+        setSelectedRfpId(null);
+        setCurrentView('frontpage');
+        setProcessingStartTime(null);
+      }}
+    />
+  ) : null;
 
       case 'processing':
         return selectedRfp ? (
@@ -346,7 +360,7 @@ const handleProcessRfp = (data: { source: 'URL' | 'File'; content: string; fileN
         {renderContent()}
       </div>
     </main>
-
+      <HelperBot currentRfp={selectedRfpId ? rfps.find(r => r.id === selectedRfpId) || null : null} />
       <style>{`
         .scrollbar-hide::-webkit-scrollbar { display: none; }
         .scrollbar-hide { -ms-overflow-style: none; scrollbar-width: none; }

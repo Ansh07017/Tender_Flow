@@ -10,6 +10,8 @@ import { productInventory } from "../data/storeData";
 import * as pdfjsLib from "pdfjs-dist/legacy/build/pdf.mjs";
 import { DiscoveryCoordinator } from "./discovery/DiscoveryCoord";
 process.env.NODE_TLS_REJECT_UNAUTHORIZED = "0";
+import { GoogleGenerativeAI } from "@google/generative-ai";
+
 
 process.on('uncaughtException', (err) => {
   console.error('🔥 CRITICAL UNCAUGHT EXCEPTION:', err);
@@ -78,6 +80,44 @@ app.post("/api/discover", async (req: Request, res: Response) => {
       error: "Discovery Agent failed to scan portals",
       message: err.message 
     });
+  }
+});
+
+app.post("/api/copilot-chat", async (req: Request, res: Response) => {
+  try {
+    const { query, context, history } = req.body;
+    const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!);
+
+    // Construct a context-aware prompt
+    const systemInstruction = `
+      You are the TenderFlow Copilot, an expert AI assistant for Government Tenders (GeM).
+      
+      CURRENT CONTEXT:
+      ${context ? `
+      - Organization: ${context.org}
+      - Bid ID: ${context.id}
+      - Parsed Data: ${JSON.stringify(context.parsedData).slice(0, 3000)}... (truncated)
+      - Financials: ${JSON.stringify(context.financials)}
+      ` : "User is on the dashboard. No specific RFP selected."}
+
+      USER HISTORY:
+      ${JSON.stringify(history.slice(-5))} 
+
+      YOUR GOAL:
+      Answer the user's query briefly and professionally. 
+      If they ask about the RFP, use the context provided.
+      If they ask about general GeM rules, use your internal knowledge.
+      Keep answers under 3 sentences unless asked for details.
+    `;
+
+    const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash-lite-001" });
+    const result = await model.generateContent(systemInstruction + "\n\nUser Query: " + query);
+    
+    res.json({ reply: result.response.text() });
+
+  } catch (err: any) {
+    console.error("Copilot Error:", err);
+    res.status(500).json({ reply: "I encountered a processing error. Please try again." });
   }
 });
 

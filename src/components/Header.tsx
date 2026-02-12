@@ -50,12 +50,19 @@ export const Header: React.FC<HeaderProps> = ({ currentView, setCurrentView }) =
       </nav>
 
       {/* 3. OPERATOR STATUS */}
-      <div className="hidden md:flex items-center gap-3 pl-6 border-l border-slate-800">
-        <div className="text-right">
-          <p className="text-[9px] font-black text-white uppercase tracking-tighter">Ansh Pratap Singh</p>
-          <p className="text-[8px] font-bold text-emerald-500 uppercase tracking-widest">Operator Online</p>
+      <div 
+        onClick={() => setCurrentView('config')}
+        className="hidden md:flex items-center gap-3 pl-6 border-l border-slate-800 cursor-pointer group hover:bg-slate-900/50 p-2 rounded-xl transition-all"
+      >
+        <div className="text-right group-hover:translate-x-[-2px] transition-transform">
+          <p className="text-[9px] font-black text-white uppercase tracking-tighter group-hover:text-gold-500 transition-colors">
+            Ansh Pratap Singh
+          </p>
+          <p className="text-[8px] font-bold text-emerald-500 uppercase tracking-widest">
+            Operator Online
+          </p>
         </div>
-        <div className="w-8 h-8 rounded-full bg-slate-800 border border-slate-700 flex items-center justify-center text-xs">
+        <div className="w-8 h-8 rounded-full bg-slate-800 border border-slate-700 flex items-center justify-center text-xs group-hover:border-gold-500/50 group-hover:shadow-[0_0_10px_rgba(212,175,55,0.2)] transition-all">
           👤
         </div>
       </div>
