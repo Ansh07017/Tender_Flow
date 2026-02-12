@@ -173,7 +173,7 @@ useEffect(() => {
           agentOutputs: {
     parsedData: backendResult.parsedData, 
     technicalAnalysis: backendResult.technicalAnalysis, 
-    pricing: backendResult.financialAnalysis },
+    pricing: backendResult.pricing },
           processingDuration: Math.round((Date.now() - startTime) / 1000),
         });
         addLog('FINALIZING_AGENT', 'Report finalized');

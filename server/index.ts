@@ -174,13 +174,14 @@ app.post("/api/parse-rfp", async (req: Request, res: Response) => {
   allowEMD: true,
   minMatchThreshold: 20
 };
+
 const financialResult = hasLineItems
   ? runFinancialAgent(
       technicalResult.itemAnalyses, 
       parsedData,
       filters||defaultFilters,
     )
-  : { pricing: {}, riskEntries: [] };
+  : { pricing: {}, riskEntries: [] ,summary: {}};
 
     /* -------------------------------
        5️⃣ Unified Response

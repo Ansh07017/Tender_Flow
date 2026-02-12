@@ -1,14 +1,9 @@
-import { LineItemTechnicalAnalysis, SKU, ParsedRfpData,FinancialAgentResult} from "../../types";
+import { LineItemTechnicalAnalysis, SKU, ParsedRfpData, FinancialAgentResult } from "../../types";
 
 /* =====================================================
-    CONFIG – Strategic Financial Buffers
+    CONFIG – Regulatory & Logic Constants
 ===================================================== */
-const BROKERAGE_PERCENT = 2; 
-const DEFAULT_MARGIN_PERCENT = 12; 
-const EPBG_PERCENT = 3; 
-const EMD_PERCENT = 2; 
-const TRANSPORT_BUFFER_PERCENT = 10; 
-
+const TRANSPORT_BUFFER_PERCENT = 10; // 10% buffer on top of base transport cost
 
 /* =====================================================
     CORE AGENT
@@ -16,89 +11,94 @@ const TRANSPORT_BUFFER_PERCENT = 10;
 export default function runFinancialAgent(
   analyses: LineItemTechnicalAnalysis[],
   rfpData: ParsedRfpData,
+  filters: any, // Contains manualAvgKms, manualRatePerKm
   manualPriceOverrides?: Record<string, { unitPrice: number }>
 ): FinancialAgentResult {
-  let baseCost = 0;
-  let transportCost = 0;
-  let gstAmount = 0;
-  let brokerageCost = 0;
-  
+  let totalBaseMaterialCost = 0;
+  let totalGstAmount = 0;
   const riskEntries: FinancialAgentResult["riskEntries"] = [];
 
-  // Iterate through technical analyses to aggregate costs
+  // Iterate through technical analyses to aggregate per-product costs
   analyses.forEach((analysis, index) => {
     const item = analysis.rfpLineItem;
-    const sku: SKU | null = analysis.selectedSku; 
+    const sku: SKU | null = analysis.selectedSku;
     
     let unitPriceToUse = 0;
-    let currentGstRate = 18;
+    let currentGstRate = 18; // Default fallback
 
-    /* -------------------------
-        1. NULL GUARD & MANUAL OVERRIDES
-    ------------------------- */
-    // Prioritize manual human intervention for the demo
+    /* 1. DYNAMIC PRICE SELECTION */
     if (manualPriceOverrides?.[item.name]) {
       unitPriceToUse = manualPriceOverrides[item.name].unitPrice;
-      riskEntries.push({
-        category: "Financial",
-        statement: `Line item ${index + 1}: Using verified manual price override.`,
-        riskLevel: "Low",
-        
-      });
+      currentGstRate = sku?.gstRate || 18;
     } else if (sku) {
-      // Logic for matched SKUs from Jalandhar Hub
       unitPriceToUse = sku.unitSalesPrice;
       currentGstRate = sku.gstRate;
-
-      // 2. AVAILABILITY LOGIC
-      if (sku.availableQuantity === 0) {
-        riskEntries.push({
-          category: "Logistics",
-          statement: `Line item ${index + 1}: ${sku.skuId} is OUT OF STOCK. Sourcing required.`,
-          riskLevel: "High",
-        });
-      } else if (sku.availableQuantity < item.quantity) {
-        riskEntries.push({
-          category: "Logistics",
-          statement: `Line item ${index + 1}: Partial stock (${sku.availableQuantity}/${item.quantity}).`,
-          riskLevel: "Medium",
-        });
-      }
-    } else {
-      // No match and no override
-      riskEntries.push({
-        category: "Financial",
-        statement: `Line item ${index + 1} (${item.name}) has no matched SKU or price.`,
-        riskLevel: "High",
-      });
-      return; 
     }
 
-    /* -------------------------
-        3. AGGREGATE COSTS
-    ------------------------- */
-    const itemSubtotal = unitPriceToUse * item.quantity;
-    baseCost += itemSubtotal;
-    gstAmount += (itemSubtotal * (currentGstRate / 100));
-    brokerageCost += (itemSubtotal * (BROKERAGE_PERCENT / 100));
-    transportCost += (itemSubtotal * (TRANSPORT_BUFFER_PERCENT / 100));
+    const lineItemBase = unitPriceToUse * item.quantity;
+    const lineItemGst = lineItemBase * (currentGstRate / 100);
+
+    /* 2. INJECT BREAKDOWN INTO ANALYSIS OBJECT FOR UI */
+    // This allows the AnalysisScreen to show (price * qty) and GST per card
+    (analysis as any).financialBreakdown = {
+      unitPrice: unitPriceToUse,
+      quantity: item.quantity,
+      baseTotal: lineItemBase,
+      gst: lineItemGst,
+      matchStatus: analysis.status
+    };
+
+    totalBaseMaterialCost += lineItemBase;
+    totalGstAmount += lineItemGst;
+
+    // Availability Risks
+    if (sku && sku.availableQuantity < item.quantity) {
+      riskEntries.push({
+        category: "Logistics",
+        statement: `Line ${index + 1}: Required ${item.quantity}, but Jalandhar Hub has ${sku.availableQuantity}.`,
+        riskLevel: sku.availableQuantity === 0 ? "High" : "Medium",
+      });
+    }
   });
 
-  /* -------------------------
-      4. GeM COMPLIANCE: EPBG & EMD
-  ------------------------- */
-  const epbgAmount = calculateSecurityDeposit(rfpData, 'epbg', baseCost, EPBG_PERCENT);
-  const emdAmount = calculateSecurityDeposit(rfpData, 'emd', baseCost, EMD_PERCENT);
+  /* 3. DYNAMIC TRANSPORTATION CALCULATION */
+  // Base Transport = (User KM Input * User Rate per KM Input)
+  const baseTransport = (filters.manualAvgKms || 0) * (filters.manualRatePerKm || 0);
+  const transportWithBuffer = baseTransport * (1 + (TRANSPORT_BUFFER_PERCENT / 100));
 
-  const finalBidValue = baseCost + transportCost + gstAmount + brokerageCost + epbgAmount + emdAmount;
+  /* 4. GeM TRANSACTION CHARGES (Sept 2024 Guidelines) */
+  // Orders <= 10L: 0
+  // Orders > 10L to 10Cr: 0.30%
+  // Orders > 10Cr: Flat 3,00,000
+  let gemBrokerage = 0;
+  const orderValueForFees = totalBaseMaterialCost; // GeM fees are usually on value excluding taxes
 
-  // Return structure optimized for frontend consumption
+  if (orderValueForFees > 1000000 && orderValueForFees <= 100000000) {
+    gemBrokerage = orderValueForFees * 0.0030; // 0.30%
+  } else if (orderValueForFees > 100000000) {
+    gemBrokerage = 300000;
+  }
+
+  /* 5. SECURITY DEPOSITS (EPBG & EMD) */
+  const epbgAmount = calculateSecurityDeposit(rfpData, 'epbg', totalBaseMaterialCost);
+  const emdAmount = calculateSecurityDeposit(rfpData, 'emd', totalBaseMaterialCost);
+
+  /* 6. FINAL AGGREGATION */
+  const finalBidValue = round(
+    totalBaseMaterialCost + 
+    totalGstAmount + 
+    gemBrokerage + 
+    transportWithBuffer + 
+    epbgAmount + 
+    emdAmount
+  );
+
   return {
     pricing: {
-      "Base Material Cost": round(baseCost),
-      "Freight & Logistics": round(transportCost),
-      "GST (Tax)": round(gstAmount),
-      "Brokerage Cost": round(brokerageCost),
+      "Material Base Cost": round(totalBaseMaterialCost),
+      "Total GST Impact": round(totalGstAmount),
+      "GeM Transaction Fee (Sept '24)": round(gemBrokerage),
+      "Logistics (incl. 10% Buffer)": round(transportWithBuffer),
       "EPBG Provision": round(epbgAmount),
       "EMD Provision": round(emdAmount),
       "Final Bid Value": round(finalBidValue),
@@ -106,8 +106,10 @@ export default function runFinancialAgent(
     summary: {
       matchStatus: determineOverallStatus(analyses),
       confidenceScore: calculateConfidence(analyses),
-      requiresManualInput: baseCost === 0 && analyses.length > 0,
-      recommendation: finalBidValue > 0 ? "Proceed with bid." : "Manual sourcing required.",
+      requiresManualInput: totalBaseMaterialCost === 0,
+        recommendation: finalBidValue > 0 
+  ? `Strategic Bid Prepared. Logistics coverage for ${filters.manualAvgKms}km confirmed.` 
+  : "Price mismatch detected. Awaiting authorized manual intervention.",
       finalBidValue: round(finalBidValue), 
     },
     riskEntries,
@@ -115,12 +117,17 @@ export default function runFinancialAgent(
 }
 
 /* =========================
-    HELPERS (Intact)
+    HELPERS
 ========================= */
-function calculateSecurityDeposit(rfp: ParsedRfpData, type: 'epbg' | 'emd', base: number, def: number): number {
+function calculateSecurityDeposit(rfp: ParsedRfpData, type: 'epbg' | 'emd', base: number): number {
   const status = rfp.financialConditions?.[type];
   if (status === "Not Required" || status === "No") return 0;
-  const percent = (type === 'epbg' ? rfp.metadata.epbgPercent : null) || def;
+  
+  // Dynamic percentages from RFP metadata or industry defaults
+  const epbgDefault = 3; 
+  const emdDefault = 2;
+  
+  const percent = (type === 'epbg' ? rfp.metadata.epbgPercent : null) || (type === 'epbg' ? epbgDefault : emdDefault);
   return base * (percent / 100);
 }
 
