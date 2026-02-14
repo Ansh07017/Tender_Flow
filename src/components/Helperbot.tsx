@@ -46,7 +46,8 @@ export const HelperBot: React.FC<HelperBotProps> = ({ currentRfp }) => {
             parsedData: currentRfp.agentOutputs?.parsedData,
             financials: currentRfp.agentOutputs?.pricing
           } : null,
-          history: messages.map(m => ({ role: m.sender, content: m.text })) // For "Learning" effect
+          history: messages.slice(1)
+    .map(m => ({ role: m.sender, content: m.text }))
         }),
       });
 

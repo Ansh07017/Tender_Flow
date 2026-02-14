@@ -9,8 +9,10 @@ import { StoreScreen } from './components/StoreScreen';
 import { FrontPage } from './components/Frontpage';
 import { productInventory as initialInventory } from '../data/storeData';
 import { HelperBot } from './components/Helperbot';
+import { SignInScreen } from './components/SignInScreen';
+import { OnboardingWizard } from './components/OnboardingWizard';
 
-import type { View, Tender } from '../types';
+import type { View, Tender,UserData,OnboardingStep } from '../types';
 import {
   AgentName,
   LogEntry,
@@ -46,7 +48,9 @@ const apiService = {
 };
 let hasTriggeredDiscovery = false;
 const App: React.FC = () => {
-  // 1. Initialized to 'frontpage' for the new command center feel
+const [user, setUser] = useState<UserData | null>(null);
+const [isAuthSessionActive, setIsAuthSessionActive] = useState(false);
+const [onboardingStep, setOnboardingStep] = useState<'NONE' | 'PIN_SETUP' | 'TWO_FA_BIND'>('NONE');
   const [currentView, setCurrentView] = useState<View | 'frontpage'>('frontpage');
   const [rfps, setRfps] = useState<Rfp[]>(initialRfpList);
   const [logs, setLogs] = useState<LogEntry[]>([]);
@@ -346,9 +350,37 @@ const handleProcessRfp = (data: { source: 'URL' | 'File'; content: string; fileN
     }
   };
 
+// Inside App.tsx
+if (!isAuthSessionActive) {
+  return (
+    <SignInScreen 
+      onAuthSuccess={(userData: UserData) => {
+        setUser(userData); 
+        setIsAuthSessionActive(true);
+        if (!userData.is_setup_complete) {
+          const nextStep = userData.has_pin ? 'TWO_FA_BIND' : 'PIN_SETUP';
+          setOnboardingStep(nextStep);
+        }
+      }} 
+    />
+  );
+}
+
+// --- GATE 2: ONBOARDING ---
+if (onboardingStep !== 'NONE') {
+  return (
+    <OnboardingWizard 
+      step={onboardingStep} 
+      email={user?.email || ''}
+      onComplete={() => setOnboardingStep('NONE')} 
+      onStepChange={(nextStep: OnboardingStep) => setOnboardingStep(nextStep)}
+    />
+  );
+}
  return (
    
     <div className="h-screen w-full bg-slate-950 flex flex-col overflow-hidden font-sans">
+      
     
     <Header currentView={currentView} setCurrentView={setCurrentView} />
 

@@ -5,16 +5,14 @@ import 'jspdf-autotable';
 
 interface AnalysisScreenProps {
   rfp: Rfp;
-  onBack: () => void; // Navigates to the previous screen (Processing/Snapshot)
-  onCancel: () => void; // NEW: Navigates all the way back to FrontPage
+  onBack: () => void;
+  onCancel: () => void;
 }
 
 export const AnalysisScreen: React.FC<AnalysisScreenProps> = ({ rfp, onBack, onCancel }) => {
-  // 1. EXTRACT DATA
   const technicalResults = rfp.agentOutputs?.technicalAnalysis?.itemAnalyses || [];
   const parsedMetadata = rfp.agentOutputs?.parsedData?.metadata || {};
 
-  // 2. STATE
   const [logisticsParams, setLogisticsParams] = useState({
     kms: 400,
     rate: 55,
@@ -24,7 +22,6 @@ export const AnalysisScreen: React.FC<AnalysisScreenProps> = ({ rfp, onBack, onC
   const [manualOverrides, setManualOverrides] = useState<Record<string, number>>({});
   const [editingItem, setEditingItem] = useState<any | null>(null);
 
-  // 3. CALCULATION ENGINE
   const liveCalculations = useMemo(() => {
     let totalMaterialBase = 0;
     let totalGst = 0;
@@ -55,13 +52,11 @@ export const AnalysisScreen: React.FC<AnalysisScreenProps> = ({ rfp, onBack, onC
     if (totalMaterialBase > 1000000 && totalMaterialBase <= 100000000) gemFee = totalMaterialBase * 0.0030;
     else if (totalMaterialBase > 100000000) gemFee = 300000;
 
-    // --- FIX: REAL EMD/EPBG LOGIC ---
-    // Check parsed metadata first. If EMD is a fixed amount, use it. If not, fallback to % calc.
     let emd = 0;
     if (parsedMetadata.emdAmount) {
       emd = parsedMetadata.emdAmount;
     } else if (rfp.agentOutputs?.parsedData?.financialConditions?.emd === "Required") {
-      emd = totalMaterialBase * 0.02; // Fallback 2% only if required but no specific amount found
+      emd = totalMaterialBase * 0.02; 
     }
 
     let epbg = 0;
@@ -164,7 +159,7 @@ export const AnalysisScreen: React.FC<AnalysisScreenProps> = ({ rfp, onBack, onC
           </div>
           <div className="flex gap-4 text-[10px] text-slate-500 font-bold uppercase tracking-[0.2em]">
              <span>Client: {rfp.organisation}</span>
-             <span>Dest: <span className="text-white">{parsedMetadata.consignee || parsedMetadata.officeName || "Unknown"}</span></span>
+             <span>Consignee Location: <span className="text-white">{parsedMetadata.consignee || parsedMetadata.officeName || "Unknown"}</span></span>
           </div>
         </div>
         <div className="flex gap-3 items-center">

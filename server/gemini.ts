@@ -2,9 +2,25 @@ import { GoogleGenerativeAI } from "@google/generative-ai";
 import { extractJsonFromText } from "./utils/extractJson";
 import { normalizeParsedRfp } from "./utils/normalizeParsedRfp";
 
-const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!);
+const keys = [
+  process.env.GEMINI_API_KEY,
+  process.env.GEMINI_API_KEY_2
+].filter(Boolean) as string[];
+
+let currentKeyIndex = 0;
+
+export function getRotatedAIInstance() {
+  if (keys.length === 0) throw new Error("No Gemini API keys found in .env");
+  
+  const key = keys[currentKeyIndex];
+  currentKeyIndex = (currentKeyIndex + 1) % keys.length; // Rotate for next call
+  
+  console.log(`[SYSTEM] Rotating API Key. Using Key Index: ${currentKeyIndex}`);
+  return new GoogleGenerativeAI(key);
+}
 
 export async function parseRFP(content: string) {
+const genAI = getRotatedAIInstance();
 const model = genAI.getGenerativeModel({
   model: "gemini-2.5-flash",
   generationConfig: {

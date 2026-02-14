@@ -1,17 +1,17 @@
 // server/index.ts
 import 'dotenv/config';
+import pool from './db';
 import express, { Request, Response } from "express";
 import cors from "cors";
 import axios from 'axios';
-import { parseRFP } from "./gemini.js";
+import { parseRFP} from "./gemini.js";
 import { runTechnicalAgent } from "../src/agents/technicalagent";
 import runFinancialAgent from "../src/agents/financialagent";
 import { productInventory } from "../data/storeData";
 import * as pdfjsLib from "pdfjs-dist/legacy/build/pdf.mjs";
 import { DiscoveryCoordinator } from "./discovery/DiscoveryCoord";
-process.env.NODE_TLS_REJECT_UNAUTHORIZED = "0";
-import { GoogleGenerativeAI } from "@google/generative-ai";
-
+import { getHelperBotResponse } from "./chatbot.js";
+import { login, setupPin, setup2FA, verify2FA, verifyVaultAccess } from './auth';
 
 process.on('uncaughtException', (err) => {
   console.error('🔥 CRITICAL UNCAUGHT EXCEPTION:', err);
@@ -86,40 +86,18 @@ app.post("/api/discover", async (req: Request, res: Response) => {
 app.post("/api/copilot-chat", async (req: Request, res: Response) => {
   try {
     const { query, context, history } = req.body;
-    const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!);
 
-    // Construct a context-aware prompt
-    const systemInstruction = `
-      You are the TenderFlow Copilot, an expert AI assistant for Government Tenders (GeM).
-      
-      CURRENT CONTEXT:
-      ${context ? `
-      - Organization: ${context.org}
-      - Bid ID: ${context.id}
-      - Parsed Data: ${JSON.stringify(context.parsedData).slice(0, 3000)}... (truncated)
-      - Financials: ${JSON.stringify(context.financials)}
-      ` : "User is on the dashboard. No specific RFP selected."}
-
-      USER HISTORY:
-      ${JSON.stringify(history.slice(-5))} 
-
-      YOUR GOAL:
-      Answer the user's query briefly and professionally. 
-      If they ask about the RFP, use the context provided.
-      If they ask about general GeM rules, use your internal knowledge.
-      Keep answers under 3 sentences unless asked for details.
-    `;
-
-    const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash-lite-001" });
-    const result = await model.generateContent(systemInstruction + "\n\nUser Query: " + query);
+    // Use the specialized Groq service (to be created in Step 2)
+    const reply = await getHelperBotResponse(query, context, history);
     
-    res.json({ reply: result.response.text() });
+    res.json({ reply });
 
   } catch (err: any) {
     console.error("Copilot Error:", err);
     res.status(500).json({ reply: "I encountered a processing error. Please try again." });
   }
 });
+
 
 // Helper for server-side logging visibility
 function addLogToConsole(agent: string, message: string) {
@@ -157,6 +135,56 @@ app.post("/api/parse-rfp", async (req: Request, res: Response) => {
       });
     }
 
+  // 1. API to Fetch Compliance Data for Analysis
+app.get("/api/compliance-check", async (req: Request, res: Response) => {
+  try {
+    const profile = await pool.query("SELECT * FROM company_profile LIMIT 1");
+    const certs = await pool.query("SELECT cert_name, is_valid, expiry_date FROM compliance_vault");
+    
+    res.json({
+      profile: profile.rows[0],
+      certificates: certs.rows
+    });
+  } catch (err) {
+    res.status(500).json({ error: "Failed to fetch compliance data" });
+  }
+});
+
+
+// 2. Secure API to Update Vault (Used by ConfigScreen)
+app.post("/api/update-config", async (req: Request, res: Response) => {
+  const { password, companyDetails } = req.body;
+  
+  if (password !== "TF-Admin-2026") {
+    return res.status(401).json({ error: "Unauthorized Vault Access" });
+  }
+
+  try {
+    await pool.query(
+      "UPDATE company_profile SET company_name = $1, address = $2, gstin = $3, pan = $4",
+      [companyDetails.companyName, companyDetails.companyAddress, companyDetails.gstin, companyDetails.pan]
+    );
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: "Database update failed" });
+  }
+});
+// server/index.ts
+
+app.get("/api/inventory", async (req, res) => {
+  try {
+    const result = await pool.query("SELECT * FROM product_inventory ORDER BY product_name ASC");
+    res.json(result.rows);
+  } catch (err) {
+    res.status(500).send("Inventory Retrieval Error");
+  }
+});
+
+app.post("/api/inventory/update-stock", async (req, res) => {
+  const { skuId, newQty } = req.body;
+  await pool.query("UPDATE product_inventory SET available_qty = $1 WHERE sku_id = $2", [newQty, skuId]);
+  res.json({ success: true });
+});
     /* -------------------------------
        1️⃣ Parse + Normalize RFP
     -------------------------------- */
@@ -191,6 +219,12 @@ app.post("/api/parse-rfp", async (req: Request, res: Response) => {
         },
       });
     }
+
+app.post("/api/auth/login", login);           // For SignInScreen
+app.post("/api/vault/setup-pin", setupPin);   // For OnboardingWizard (Step 1)
+app.post("/api/vault/setup-2fa", setup2FA);   // For OnboardingWizard (Step 2)
+app.post("/api/vault/verify-2fa", verify2FA); // For OnboardingWizard (Step 2 Confirm)
+app.post("/api/vault/verify-pin", verifyVaultAccess); // For Dashboard/Vault Access
 
     /* -------------------------------
        3️⃣ Technical Agent

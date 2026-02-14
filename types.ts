@@ -91,7 +91,13 @@ export interface CertificationCheck {
   verified: boolean;                 // human verification
 }
 
+export interface UserData {
+  email: string;
+  is_setup_complete: boolean;
+  has_pin: boolean;
+}
 
+export type OnboardingStep = 'NONE' | 'PIN_SETUP' | 'TWO_FA_BIND';
 
 export interface ParsedRfpData {
   metadata: {

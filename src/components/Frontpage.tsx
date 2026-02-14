@@ -205,7 +205,7 @@ export const FrontPage: React.FC<FrontPageProps> = ({
 </div>
        {/* --- RIGHT HUD: VERTICAL AGENTIC ORCHESTRATION --- */}
 <div className="flex-[1.5] bg-slate-900/20 border border-slate-800 rounded-3xl p-8 relative flex flex-col shadow-2xl overflow-hidden min-h-full">
-  <div className="text-[13px] font-white uppercase tracking-widest text-center mb-8 border-b border-slate-800 pb-4 shrink-0">
+  <div className="text-[12px] font-white uppercase tracking-widest text-center mb-8 border-b border-slate-800 pb-4 shrink-0">
     Orchestration Pipeline
   </div>
   
@@ -225,7 +225,7 @@ export const FrontPage: React.FC<FrontPageProps> = ({
     <div className="mt-8 animate-in zoom-in-95 fade-in slide-in-from-bottom-2 duration-700">
       <button 
         onClick={onNavigateToDiscovery} 
-        className="w-full bg-[#FFD700] text-slate-950 py-4 rounded-xl font-black uppercase text-[11px] tracking-[0.2em] 
+        className="w-full bg-[#FFD700] text-slate-950 py-4 rounded-xl font-black uppercase text-[10px] tracking-[0.2em] 
                    hover:bg-white hover:scale-[1.02] active:scale-95
                    shadow-[0_0_30px_rgba(255,215,0,0.5)] border border-white/40
                    transition-all duration-300 relative overflow-hidden group"
