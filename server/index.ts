@@ -11,7 +11,7 @@ import { productInventory } from "../data/storeData";
 import * as pdfjsLib from "pdfjs-dist/legacy/build/pdf.mjs";
 import { DiscoveryCoordinator } from "./discovery/DiscoveryCoord";
 import { getHelperBotResponse } from "./chatbot.js";
-import { login, setupPin, setup2FA, verify2FA, verifyVaultAccess } from './auth';
+import { login, setupPin, setup2FA, verify2FA, verifyVaultAccess,checkEmail,sendAuthOtp,verifyAuthOtp } from './auth';
 
 process.on('uncaughtException', (err) => {
   console.error('🔥 CRITICAL UNCAUGHT EXCEPTION:', err);
@@ -225,6 +225,9 @@ app.post("/api/vault/setup-pin", setupPin);   // For OnboardingWizard (Step 1)
 app.post("/api/vault/setup-2fa", setup2FA);   // For OnboardingWizard (Step 2)
 app.post("/api/vault/verify-2fa", verify2FA); // For OnboardingWizard (Step 2 Confirm)
 app.post("/api/vault/verify-pin", verifyVaultAccess); // For Dashboard/Vault Access
+app.post("/api/auth/check-email", checkEmail);
+app.post("/api/auth/send-otp", sendAuthOtp);
+app.post("/api/auth/verify-otp", verifyAuthOtp);
 
     /* -------------------------------
        3️⃣ Technical Agent

@@ -78,6 +78,7 @@ const [onboardingStep, setOnboardingStep] = useState<'NONE' | 'PIN_SETUP' | 'TWO
   );
   /* -------------------- Automated Discovery Logic -------------------- */
 useEffect(() => {
+  if (!isAuthSessionActive) return;
   if (hasTriggeredDiscovery) return;
   hasTriggeredDiscovery = true;
   const triggerAutomatedDiscovery = async () => {
@@ -118,7 +119,7 @@ useEffect(() => {
     }
   };
   triggerAutomatedDiscovery();
-}, []); 
+}, [isAuthSessionActive]); 
 
   /* -------------------- RFP State -------------------- */
   const updateRfpState = (rfpId: string, updates: Partial<Rfp>) => {

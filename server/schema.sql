@@ -54,6 +54,8 @@ CREATE TABLE IF NOT EXISTS vault_access (
     is_locked BOOLEAN DEFAULT FALSE,
     failed_attempts INTEGER DEFAULT 0,
     last_login TIMESTAMP
+    reset_token VARCHAR(6),
+    reset_token_expiry TIMESTAMP;
 );
 
 -- Initialize with your current configData.ts values

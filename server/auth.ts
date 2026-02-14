@@ -153,6 +153,88 @@ export const setup2FA = async (req: Request, res: Response) => {
   }
 };
 
+// server/auth.ts
+
+// --- 1. Check if Email Exists (Used by SignInScreen) ---
+export const checkEmail = async (req: Request, res: Response) => {
+  const { email } = req.body;
+  try {
+    const result = await query("SELECT id FROM vault_access WHERE recovery_email = $1", [email]);
+    res.json({ exists: result.rows.length > 0 });
+  } catch (err) {
+    res.status(500).json({ error: "Database check failed" });
+  }
+};
+
+// --- 2. Generate & "Send" OTP ---
+export const sendAuthOtp = async (req: Request, res: Response) => {
+  const { email } = req.body;
+  
+  // Generate a random 6-digit code
+  const otp = Math.floor(100000 + Math.random() * 900000).toString();
+  
+  // Set expiry to 10 minutes from now
+  const expiry = new Date(Date.now() + 10 * 60 * 1000);
+
+  try {
+    // Upsert: Update if exists, Insert if new
+    const checkUser = await query("SELECT id FROM vault_access WHERE recovery_email = $1", [email]);
+    
+    if (checkUser.rows.length > 0) {
+      await query(
+        "UPDATE vault_access SET reset_token = $1, reset_token_expiry = $2 WHERE recovery_email = $3",
+        [otp, expiry, email]
+      );
+    } else {
+      await query(
+        "INSERT INTO vault_access (recovery_email, reset_token, reset_token_expiry, is_setup_complete) VALUES ($1, $2, $3, false)",
+        [email, otp, expiry]
+      );
+    }
+
+    // SIMULATE EMAIL SENDING (Logs to your VS Code Terminal)
+    console.log(`\n================================`);
+    console.log(`🔑 DEMO OTP for ${email}: ${otp}`);
+    console.log(`================================\n`);
+
+    res.json({ success: true, message: "OTP sent" });
+  } catch (err) {
+    res.status(500).json({ error: "Failed to generate OTP" });
+  }
+};
+
+// --- 3. Verify OTP ---
+export const verifyAuthOtp = async (req: Request, res: Response) => {
+  const { email, otp } = req.body;
+
+  try {
+    const result = await query("SELECT * FROM vault_access WHERE recovery_email = $1", [email]);
+    
+    if (result.rows.length === 0) return res.status(400).json({ error: "User not found" });
+
+    const user = result.rows[0];
+
+    // Check if OTP matches and hasn't expired
+    const now = new Date();
+    const expiry = new Date(user.reset_token_expiry);
+
+    if (user.reset_token === otp && expiry > now) {
+      // Clear the used token
+      await query("UPDATE vault_access SET reset_token = NULL, reset_token_expiry = NULL WHERE id = $1", [user.id]);
+      
+      res.json({ 
+        success: true, 
+        is_setup_complete: user.is_setup_complete,
+        has_pin: !!user.pin_hash
+      });
+    } else {
+      res.status(400).json({ error: "Invalid or expired OTP" });
+    }
+  } catch (err) {
+    res.status(500).json({ error: "Verification failed" });
+  }
+};
+
 /**
  * 3. 2FA VERIFICATION
  * Validates the 6-digit TOTP from the app
