@@ -1,6 +1,12 @@
-import React, { useState, useEffect } from 'react';
-import { Shield, Key, Smartphone, ArrowRight, CheckCircle, AlertCircle, Loader2 } from 'lucide-react';
+import * as React from 'react';
+import { useState, useEffect, useRef } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
+import { 
+  Shield, Smartphone, ArrowRight, CheckCircle, 
+  AlertCircle, Loader2, Lock, Fingerprint, Info 
+} from 'lucide-react';
 import type { OnboardingStep } from '../../types';
+import logo from '../assets/TenderFlow.png';
 
 interface OnboardingWizardProps {
   step: OnboardingStep;
@@ -15,20 +21,18 @@ export const OnboardingWizard: React.FC<OnboardingWizardProps> = ({
   onComplete, 
   onStepChange 
 }) => {
-  // State for PIN Setup
   const [pin, setPin] = useState('');
   const [confirmPin, setConfirmPin] = useState('');
-  
-  // State for 2FA Setup
   const [qrCodeUrl, setQrCodeUrl] = useState<string | null>(null);
   const [manualCode, setManualCode] = useState<string | null>(null);
   const [totpCode, setTotpCode] = useState('');
-
-  // General UI State
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // --- EFFECT: Fetch QR Code when entering 2FA step ---
+  const pinRef = useRef<HTMLInputElement>(null);
+  const confirmRef = useRef<HTMLInputElement>(null);
+  const totpRef = useRef<HTMLInputElement>(null);
+
   useEffect(() => {
     if (step === 'TWO_FA_BIND' && !qrCodeUrl) {
       const fetchQR = async () => {
@@ -54,30 +58,17 @@ export const OnboardingWizard: React.FC<OnboardingWizardProps> = ({
     }
   }, [step, email, qrCodeUrl]);
 
-  // --- HANDLER: Submit PIN ---
   const handlePinSubmit = async () => {
-    if (pin.length !== 6 || !/^\d+$/.test(pin)) {
-      setError("PIN must be exactly 6 digits.");
-      return;
-    }
-    if (pin !== confirmPin) {
-      setError("PINs do not match.");
-      return;
-    }
-
+    if (pin.length !== 6 || pin !== confirmPin) return;
     setIsLoading(true);
     setError(null);
-
     try {
       const res = await fetch('http://localhost:3001/api/vault/setup-pin', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email, pin }),
       });
-
       if (!res.ok) throw new Error("Failed to save PIN.");
-
-      // Success: Move to next step
       onStepChange('TWO_FA_BIND');
     } catch (err) {
       setError("System error saving PIN. Try again.");
@@ -86,30 +77,18 @@ export const OnboardingWizard: React.FC<OnboardingWizardProps> = ({
     }
   };
 
-  // --- HANDLER: Verify 2FA ---
   const handle2FAVerify = async () => {
-    if (totpCode.length !== 6) {
-      setError("Please enter the 6-digit code from your app.");
-      return;
-    }
-
+    if (totpCode.length !== 6) return;
     setIsLoading(true);
-    setError(null);
-
     try {
       const res = await fetch('http://localhost:3001/api/vault/verify-2fa', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email, userCode: totpCode, isSetupMode: true }),
       });
-
       const data = await res.json();
-
-      if (data.success) {
-        onComplete(); // Triggers the dashboard in App.tsx
-      } else {
-        setError("Invalid code. Please wait for a new code and try again.");
-      }
+      if (data.success) onComplete();
+      else setError("Invalid code. Please try again.");
     } catch (err) {
       setError("Verification failed.");
     } finally {
@@ -118,133 +97,174 @@ export const OnboardingWizard: React.FC<OnboardingWizardProps> = ({
   };
 
   return (
-    <div className="min-h-screen w-full bg-slate-950 flex flex-col items-center justify-center relative overflow-hidden font-sans p-4">
+    <div className="min-h-screen w-full bg-slate-950 flex flex-col md:flex-row overflow-hidden font-sans relative">
       
-      {/* Background Effects */}
-      <div className="absolute top-0 left-0 w-[600px] h-[600px] bg-blue-600/5 blur-[120px] rounded-full pointer-events-none" />
-      
-      <div className="w-full max-w-lg bg-slate-900 border border-slate-800 rounded-2xl shadow-2xl p-8 relative z-10">
+      {/* LEFT SIDE: PROJECT IDEA & PROGRESS */}
+      <div className="hidden md:flex md:w-1/2 bg-gradient-to-br from-blue-900/20 via-slate-950 to-slate-950 p-16 flex-col justify-between border-r border-slate-800/50 relative">
+        <div className="absolute top-0 left-0 w-full h-full opacity-10 pointer-events-none bg-[url('https://www.transparenttextures.com/patterns/carbon-fibre.png')]"></div>
         
-        {/* Progress Header */}
-        <div className="flex items-center justify-center space-x-4 mb-8">
-          <div className={`flex items-center gap-2 ${step === 'PIN_SETUP' ? 'text-blue-400' : 'text-slate-600'}`}>
-            <div className={`w-8 h-8 rounded-full flex items-center justify-center border ${step === 'PIN_SETUP' ? 'border-blue-400 bg-blue-400/10' : 'border-slate-700'}`}>1</div>
-            <span className="text-sm font-medium">Secure PIN</span>
+        <div className="relative z-10">
+          <div className="flex items-center gap-4 mb-16">
+            <img src={logo} alt="Logo" className="w-14 h-14 object-contain drop-shadow-[0_0_15px_rgba(59,130,246,0.5)]" />
+            <div>
+              <h1 className="text-2xl font-bold text-white tracking-tight">Tender<span className="text-blue-500">Flow</span></h1>
+              <p className="text-amber-400 text-[10px] font-bold uppercase tracking-[0.2em]">Compliance Vault</p>
+            </div>
           </div>
-          <div className="w-8 h-[1px] bg-slate-700" />
-          <div className={`flex items-center gap-2 ${step === 'TWO_FA_BIND' ? 'text-blue-400' : 'text-slate-600'}`}>
-            <div className={`w-8 h-8 rounded-full flex items-center justify-center border ${step === 'TWO_FA_BIND' ? 'border-blue-400 bg-blue-400/10' : 'border-slate-700'}`}>2</div>
-            <span className="text-sm font-medium">2FA Link</span>
+
+          <div className="space-y-12">
+            <h2 className="text-5xl font-extrabold text-white leading-tight">
+              Secure Your <br/>
+              <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-amber-300">
+                Digital Identity
+              </span>
+            </h2>
+            
+            <div className="space-y-8">
+              <div className={`flex items-center gap-4 transition-all duration-500 ${step === 'PIN_SETUP' ? 'scale-105 opacity-100' : 'opacity-40'}`}>
+                <div className={`w-12 h-12 rounded-2xl flex items-center justify-center border-2 ${step === 'PIN_SETUP' ? 'bg-blue-600 border-blue-400 shadow-[0_0_20px_rgba(37,99,235,0.3)]' : 'bg-slate-900 border-slate-800'}`}>
+                  <Lock className={`w-6 h-6 ${step === 'PIN_SETUP' ? 'text-white' : 'text-slate-500'}`} />
+                </div>
+                <div>
+                  <h4 className="text-white font-bold text-lg">Master PIN</h4>
+                  <p className="text-slate-400 text-sm">Create your 6-digit access key</p>
+                </div>
+              </div>
+
+              <div className={`flex items-center gap-4 transition-all duration-500 ${step === 'TWO_FA_BIND' ? 'scale-105 opacity-100' : 'opacity-40'}`}>
+                <div className={`w-12 h-12 rounded-2xl flex items-center justify-center border-2 ${step === 'TWO_FA_BIND' ? 'bg-emerald-600 border-emerald-400 shadow-[0_0_20px_rgba(16,185,129,0.3)]' : 'bg-slate-900 border-slate-800'}`}>
+                  <Fingerprint className={`w-6 h-6 ${step === 'TWO_FA_BIND' ? 'text-white' : 'text-slate-500'}`} />
+                </div>
+                <div>
+                  <h4 className="text-white font-bold text-lg">2FA Link</h4>
+                  <p className="text-slate-400 text-sm">Biometric or App-based security</p>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
 
-        {/* STEP 1: PIN SETUP */}
-        {step === 'PIN_SETUP' && (
-          <div className="animate-in fade-in slide-in-from-right-4 duration-300">
-            <div className="text-center mb-6">
-              <div className="w-12 h-12 bg-slate-800 rounded-xl flex items-center justify-center mx-auto mb-4 text-blue-400">
-                <Shield className="w-6 h-6" />
-              </div>
-              <h2 className="text-2xl font-bold text-white">Set Master PIN</h2>
-              <p className="text-slate-400 text-sm mt-2">Create a 6-digit PIN. You will need this to access the Compliance Vault.</p>
-            </div>
-
-            <div className="space-y-4">
-              <div>
-                <label className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Enter 6-Digit PIN</label>
-                <input 
-                  type="password" 
-                  maxLength={6}
-                  value={pin}
-                  onChange={(e) => setPin(e.target.value.replace(/\D/g, ''))}
-                  className="w-full bg-slate-950 border border-slate-700 text-white text-center text-2xl tracking-[0.5em] p-4 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none transition-all placeholder-slate-700"
-                  placeholder="••••••"
-                />
-              </div>
-              <div>
-                <label className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Confirm PIN</label>
-                <input 
-                  type="password" 
-                  maxLength={6}
-                  value={confirmPin}
-                  onChange={(e) => setConfirmPin(e.target.value.replace(/\D/g, ''))}
-                  className={`w-full bg-slate-950 border border-slate-700 text-white text-center text-2xl tracking-[0.5em] p-4 rounded-lg focus:ring-2 outline-none transition-all placeholder-slate-700 ${pin && confirmPin && pin !== confirmPin ? 'border-red-500' : ''}`}
-                  placeholder="••••••"
-                />
-              </div>
-            </div>
-
-            <button 
-              onClick={handlePinSubmit}
-              disabled={isLoading || pin.length !== 6 || pin !== confirmPin}
-              className="w-full mt-8 bg-blue-600 hover:bg-blue-500 disabled:opacity-50 disabled:cursor-not-allowed text-white font-bold py-4 rounded-xl transition-all flex items-center justify-center gap-2"
-            >
-              {isLoading ? <Loader2 className="w-5 h-5 animate-spin" /> : <>Continue <ArrowRight className="w-5 h-5" /></>}
-            </button>
+        <div className="relative z-10 p-8 bg-slate-900/40 rounded-3xl border border-white/5 backdrop-blur-xl">
+          <div className="flex items-center gap-3 mb-2">
+            <Info className="w-5 h-5 text-amber-400" />
+            <span className="text-amber-400 font-bold text-[10px] tracking-widest uppercase">Encryption Standard</span>
           </div>
-        )}
-
-        {/* STEP 2: 2FA SETUP */}
-        {step === 'TWO_FA_BIND' && (
-          <div className="animate-in fade-in slide-in-from-right-4 duration-300">
-            <div className="text-center mb-6">
-              <div className="w-12 h-12 bg-slate-800 rounded-xl flex items-center justify-center mx-auto mb-4 text-emerald-400">
-                <Smartphone className="w-6 h-6" />
-              </div>
-              <h2 className="text-2xl font-bold text-white">Two-Factor Auth</h2>
-              <p className="text-slate-400 text-sm mt-2">Scan this code with Google Authenticator or Microsoft Authenticator.</p>
-            </div>
-
-            <div className="flex flex-col items-center justify-center mb-6">
-              {isLoading && !qrCodeUrl ? (
-                <div className="w-48 h-48 bg-slate-800 rounded-xl flex items-center justify-center">
-                  <Loader2 className="w-8 h-8 text-blue-500 animate-spin" />
-                </div>
-              ) : (
-                <div className="p-4 bg-white rounded-xl shadow-lg">
-                  {/* QR Code Image */}
-                  {qrCodeUrl && <img src={qrCodeUrl} alt="2FA QR Code" className="w-40 h-40" />}
-                </div>
-              )}
-              
-              {manualCode && (
-                <div className="mt-4 text-center">
-                  <p className="text-xs text-slate-500 mb-1">Or enter manual key:</p>
-                  <code className="bg-slate-950 px-3 py-1 rounded text-blue-400 text-sm font-mono tracking-wide">{manualCode}</code>
-                </div>
-              )}
-            </div>
-
-            <div className="space-y-3">
-              <label className="text-xs font-semibold text-slate-500 uppercase tracking-wider block text-center">Enter 6-Digit Code from App</label>
-              <input 
-                type="text" 
-                maxLength={6}
-                value={totpCode}
-                onChange={(e) => setTotpCode(e.target.value.replace(/\D/g, ''))}
-                className="w-full bg-slate-950 border border-slate-700 text-white text-center text-3xl tracking-[0.5em] p-4 rounded-lg focus:ring-2 focus:ring-emerald-500 outline-none transition-all placeholder-slate-700"
-                placeholder="000000"
-              />
-            </div>
-
-            <button 
-              onClick={handle2FAVerify}
-              disabled={isLoading || totpCode.length !== 6}
-              className="w-full mt-6 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white font-bold py-4 rounded-xl transition-all flex items-center justify-center gap-2"
-            >
-              {isLoading ? <Loader2 className="w-5 h-5 animate-spin" /> : <>Verify & Complete Setup <CheckCircle className="w-5 h-5" /></>}
-            </button>
-          </div>
-        )}
-
-        {/* Error Message Toast */}
-        {error && (
-          <div className="mt-6 p-3 bg-red-500/10 border border-red-500/20 rounded-lg flex items-center gap-3 animate-in fade-in slide-in-from-bottom-2">
-            <AlertCircle className="w-5 h-5 text-red-400 shrink-0" />
-            <span className="text-red-400 text-sm font-medium">{error}</span>
-          </div>
-        )}
+          <p className="text-slate-400 text-sm italic leading-relaxed">
+            "Your vault uses end-to-end hashing and multi-factor validation, ensuring industrial secrets remain private under the 2026 Compliance Act."
+          </p>
+        </div>
       </div>
+
+      {/* RIGHT SIDE: INTERACTIVE SETUP */}
+      <div className="w-full md:w-1/2 flex items-center justify-center p-8 bg-slate-950 relative">
+        <div className="w-full max-w-md">
+          <AnimatePresence mode="wait">
+            {step === 'PIN_SETUP' && (
+              <motion.div 
+                key="pin-setup"
+                initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }}
+                className="space-y-10"
+              >
+                <div className="text-center">
+                  <h3 className="text-3xl font-bold text-white mb-2">Create Master PIN</h3>
+                  <p className="text-slate-500">Enter a 6-digit code for physical device access.</p>
+                </div>
+
+                <div className="space-y-8">
+                  <div className="space-y-4">
+                    <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest block text-center">New PIN</span>
+                    <div className="flex justify-center gap-3" onClick={() => pinRef.current?.focus()}>
+                      {[...Array(6)].map((_, i) => (
+                        <div key={i} className={`w-12 h-14 rounded-2xl flex items-center justify-center text-xl font-bold border-2 transition-all duration-300 ${pin[i] ? 'bg-blue-600 border-blue-400 text-white shadow-[0_0_15px_rgba(37,99,235,0.4)]' : 'bg-slate-900 border-slate-800 text-slate-700'}`}>
+                          {pin[i] ? '•' : ''}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div className="space-y-4">
+                    <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest block text-center">Confirm PIN</span>
+                    <div className="flex justify-center gap-3" onClick={() => confirmRef.current?.focus()}>
+                      {[...Array(6)].map((_, i) => (
+                        <div key={i} className={`w-12 h-14 rounded-2xl flex items-center justify-center text-xl font-bold border-2 transition-all duration-300 ${confirmPin[i] ? (pin === confirmPin ? 'bg-emerald-600 border-emerald-400' : 'bg-red-900/50 border-red-500') + ' text-white shadow-lg' : 'bg-slate-900 border-slate-800 text-slate-700'}`}>
+                          {confirmPin[i] ? '•' : ''}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+
+                <input ref={pinRef} type="password" maxLength={6} value={pin} onChange={(e) => setPin(e.target.value.replace(/\D/g, ''))} className="absolute opacity-0 pointer-events-none" />
+                <input ref={confirmRef} type="password" maxLength={6} value={confirmPin} onChange={(e) => setConfirmPin(e.target.value.replace(/\D/g, ''))} className="absolute opacity-0 pointer-events-none" />
+
+                <button 
+                  onClick={handlePinSubmit} 
+                  disabled={isLoading || pin.length !== 6 || pin !== confirmPin}
+                  className="w-full bg-blue-600 hover:bg-blue-500 disabled:opacity-30 text-white font-bold py-4 rounded-2xl shadow-xl transition-all active:scale-95"
+                >
+                  {isLoading ? <Loader2 className="animate-spin mx-auto" /> : "Save Master PIN"}
+                </button>
+              </motion.div>
+            )}
+
+            {step === 'TWO_FA_BIND' && (
+              <motion.div 
+                key="2fa-setup"
+                initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }}
+                className="space-y-8"
+              >
+                <div className="text-center">
+                  <h3 className="text-3xl font-bold text-white mb-2">Link 2FA</h3>
+                  <p className="text-slate-500">Scan this QR with your Authenticator app.</p>
+                </div>
+
+                <div className="flex flex-col items-center">
+                  <div className="p-4 bg-white rounded-3xl shadow-[0_0_40px_rgba(255,255,255,0.1)] mb-6">
+                    {qrCodeUrl ? <img src={qrCodeUrl} alt="QR" className="w-44 h-44" /> : <div className="w-44 h-44 flex items-center justify-center"><Loader2 className="animate-spin text-blue-600" /></div>}
+                  </div>
+                  {manualCode && <p className="text-[10px] text-slate-500 font-mono tracking-widest bg-slate-900 px-4 py-2 rounded-full border border-slate-800">{manualCode}</p>}
+                </div>
+
+                <div className="space-y-4">
+                  <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest block text-center">Enter 6-Digit App Code</span>
+                  <div className="flex justify-center gap-2" onClick={() => totpRef.current?.focus()}>
+                    {[...Array(6)].map((_, i) => (
+                      <div key={i} className={`w-12 h-14 rounded-xl flex items-center justify-center text-2xl font-bold border-2 transition-all ${totpCode[i] ? 'bg-emerald-600 border-emerald-400 text-white' : 'bg-slate-900 border-slate-800 text-slate-800'}`}>
+                        {totpCode[i] || '0'}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                <input ref={totpRef} type="text" maxLength={6} value={totpCode} onChange={(e) => setTotpCode(e.target.value.replace(/\D/g, ''))} className="absolute opacity-0 pointer-events-none" />
+
+                <button 
+                  onClick={handle2FAVerify} 
+                  disabled={isLoading || totpCode.length !== 6}
+                  className="w-full bg-emerald-600 hover:bg-emerald-500 disabled:opacity-30 text-white font-bold py-4 rounded-2xl flex items-center justify-center gap-3 transition-all"
+                >
+                  {isLoading ? <Loader2 className="animate-spin" /> : <>Verify & Finish <CheckCircle className="w-5 h-5" /></>}
+                </button>
+              </motion.div>
+            )}
+          </AnimatePresence>
+
+          {error && (
+            <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="mt-8 p-4 bg-red-500/10 border border-red-500/20 text-red-400 text-xs text-center rounded-2xl flex items-center justify-center gap-2">
+              <AlertCircle className="w-4 h-4" /> {error}
+            </motion.div>
+          )}
+        </div>
+      </div>
+
+      {/* FOOTER - SYSTEM CREDITS */}
+      <footer className="absolute bottom-6 w-full flex justify-center items-center pointer-events-none">
+        <div className="bg-slate-900/40 backdrop-blur-md border border-white/5 px-6 py-2 rounded-full shadow-2xl">
+          <p className="text-[10px] md:text-xs font-medium text-slate-500 tracking-[0.2em] uppercase">
+            System developed by <span className="text-blue-400 font-bold">Ansh Pratap Singh</span>
+          </p>
+        </div>
+      </footer>
     </div>
   );
 };

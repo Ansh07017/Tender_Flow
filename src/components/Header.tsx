@@ -1,5 +1,5 @@
 
-import React from 'react';
+import * as React from 'react';
 import { Logo } from './Logo';
 import { View } from '../../types';
 
@@ -14,6 +14,7 @@ export const Header: React.FC<HeaderProps> = ({ currentView, setCurrentView }) =
     { id: 'discovery', label: 'Discovery' },
     { id: 'store', label: 'Inventory'},
     { id: 'config', label: 'Settings'},
+    { id: 'vault', label: 'Vault'},
     { id: 'logs', label: 'Terminal'},
   ];
 

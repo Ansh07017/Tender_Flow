@@ -1,7 +1,10 @@
-import React, { useState } from 'react';
+import * as React from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { GoogleLogin } from '@react-oauth/google';
-import { ShieldCheck, Mail, ArrowRight, KeyRound } from 'lucide-react';
+import { ShieldCheck, Mail, ArrowRight, Info, CheckCircle2 } from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
 import type { UserData } from '../../types';
+import logo from '../assets/TenderFlow.png';
 
 interface SignInScreenProps {
   onAuthSuccess: (userData: UserData) => void;
@@ -14,8 +17,13 @@ export const SignInScreen: React.FC<SignInScreenProps> = ({ onAuthSuccess }) => 
   const [pin, setPin] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
+  const pinInputRef = useRef<HTMLInputElement>(null);
 
-  // 1. Check if Email Exists
+  // Auto-focus hidden input for PIN bubbles
+  useEffect(() => {
+    if (mode === 'PIN_ENTRY') pinInputRef.current?.focus();
+  }, [mode]);
+
   const handleEmailSubmit = async () => {
     setIsLoading(true);
     setError(null);
@@ -26,11 +34,8 @@ export const SignInScreen: React.FC<SignInScreenProps> = ({ onAuthSuccess }) => 
         body: JSON.stringify({ email }),
       });
       const data = await res.json();
-      
-      if (data.exists) {
-        setMode('PIN_ENTRY');
-      } else {
-        // New User -> Send OTP to verify email first
+      if (data.exists) setMode('PIN_ENTRY');
+      else {
         await fetch('http://localhost:3001/api/auth/send-otp', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -38,42 +43,9 @@ export const SignInScreen: React.FC<SignInScreenProps> = ({ onAuthSuccess }) => 
         });
         setMode('OTP_ENTRY');
       }
-    } catch (err) {
-      setError("Connection failed. Please try again.");
-    } finally {
-      setIsLoading(false);
-    }
+    } catch (err) { setError("Connection failed. Check backend."); } finally { setIsLoading(false); }
   };
 
-  // 2. Verify OTP (For New Users or PIN Reset)
-  const handleOtpSubmit = async () => {
-    setIsLoading(true);
-    try {
-      const res = await fetch('http://localhost:3001/api/auth/verify-otp', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, otp }),
-      });
-      const data = await res.json();
-      
-      if (data.success) {
-        // OTP Verified -> Log them in (will trigger PIN Setup in App.tsx)
-        onAuthSuccess({
-            email,
-            is_setup_complete: false,
-            has_pin: false
-        });
-      } else {
-        setError("Invalid or expired code.");
-      }
-    } catch (err) {
-      setError("Verification failed.");
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  // 3. Verify PIN (For Returning Users)
   const handlePinLogin = async () => {
     setIsLoading(true);
     try {
@@ -83,145 +55,226 @@ export const SignInScreen: React.FC<SignInScreenProps> = ({ onAuthSuccess }) => 
         body: JSON.stringify({ email, pin, mode: 'PIN' }),
       });
       const data = await res.json();
-      
-      if (data.success) {
-        onAuthSuccess({
-            email,
-            is_setup_complete: true, // Assuming if they have a PIN, they are set up
-            has_pin: true
-        });
-      } else {
-        setError("Incorrect PIN.");
-      }
-    } catch (err) {
-      setError("Login failed.");
-    } finally {
-      setIsLoading(false);
-    }
+      if (data.success) onAuthSuccess({ email, is_setup_complete: true, has_pin: true });
+      else { setError("Incorrect PIN."); setPin(''); }
+    } catch (err) { setError("Login failed."); } finally { setIsLoading(false); }
+  };
+
+  const handleOtpSubmit = async () => {
+    setIsLoading(true);
+    try {
+      const res = await fetch('http://localhost:3001/api/auth/verify-otp', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, otp }),
+      });
+      const data = await res.json();
+      if (data.success) onAuthSuccess({ email, is_setup_complete: false, has_pin: false });
+      else setError("Invalid code.");
+    } catch (err) { setError("Verification failed."); } finally { setIsLoading(false); }
   };
 
   return (
-    <div className="min-h-screen w-full bg-slate-950 flex items-center justify-center p-4">
-      <div className="w-full max-w-md bg-slate-900 border border-slate-800 rounded-2xl p-8 shadow-2xl relative overflow-hidden">
+    <div className="min-h-screen w-full bg-slate-950 flex flex-col md:flex-row overflow-hidden font-sans relative">
+      
+      {/* LEFT HALF: THE IDEA & STORY */}
+      <div className="hidden md:flex md:w-1/2 bg-gradient-to-br from-blue-900/20 via-slate-950 to-slate-950 p-16 flex-col justify-between border-r border-slate-800/50 relative">
+        <div className="absolute top-0 left-0 w-full h-full opacity-10 pointer-events-none bg-[url('https://www.transparenttextures.com/patterns/carbon-fibre.png')]"></div>
         
-        {/* Header */}
-        <div className="text-center mb-8">
-          <div className="w-12 h-12 bg-slate-800 rounded-xl flex items-center justify-center mx-auto mb-4 text-blue-400">
-            <ShieldCheck className="w-6 h-6" />
+        <div className="relative z-10">
+          <div className="flex items-center gap-4 mb-12">
+            <img src={logo} alt="TenderFlow Logo" className="w-16 h-16 object-contain drop-shadow-[0_0_15px_rgba(59,130,246,0.5)]" />
+            <div>
+              <h1 className="text-3xl font-bold text-white tracking-tight">Tender<span className="text-blue-500">Flow</span></h1>
+              <p className="text-amber-400 text-xs font-bold uppercase tracking-[0.2em]">Industrial Systems</p>
+            </div>
           </div>
-          <h1 className="text-2xl font-bold text-white">TenderFlow Vault</h1>
+          
+          <div className="space-y-8 max-w-lg">
+            <h2 className="text-5xl font-extrabold text-white leading-[1.1]">
+              Intelligent <br/>
+              <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-amber-300">
+                Compliance Vault
+              </span>
+            </h2>
+            <div className="space-y-4">
+              <div className="flex items-start gap-4 text-slate-300">
+                <CheckCircle2 className="w-6 h-6 text-blue-500 mt-1 flex-shrink-0" />
+                <p className="text-lg">AI-powered technical matching for government tenders and RFPs.</p>
+              </div>
+              <div className="flex items-start gap-4 text-slate-300">
+                <CheckCircle2 className="w-6 h-6 text-blue-500 mt-1 flex-shrink-0" />
+                <p className="text-lg">Automated financial risk auditing and compliance document management.</p>
+              </div>
+            </div>
+          </div>
         </div>
 
-        {/* STEP 1: EMAIL */}
-        {mode === 'EMAIL_ENTRY' && (
-          <div className="space-y-4">
-             <GoogleLogin
-                onSuccess={(credentialResponse) => {
-                  // Keep your existing Google logic here for speed
-                  console.log("Google Success:", credentialResponse);
-                }}
-                onError={() => setError('Google Sign-In failed')}
-                theme="filled_black"
-                shape="pill"
-            />
-            
-            <div className="relative flex py-2 items-center">
-                <div className="flex-grow border-t border-slate-700"></div>
-                <span className="flex-shrink-0 mx-4 text-slate-500 text-xs">OR CONTINUE WITH EMAIL</span>
-                <div className="flex-grow border-t border-slate-700"></div>
-            </div>
-
-            <div className="relative">
-              <Mail className="absolute left-3 top-3.5 w-5 h-5 text-slate-500" />
-              <input 
-                type="email" 
-                placeholder="work@company.com"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                className="w-full bg-slate-950 border border-slate-700 text-white pl-10 pr-4 py-3 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
-              />
-            </div>
-            <button 
-              onClick={handleEmailSubmit}
-              disabled={isLoading || !email}
-              className="w-full bg-blue-600 hover:bg-blue-500 text-white font-bold py-3 rounded-lg flex items-center justify-center gap-2 transition-all"
-            >
-              Continue <ArrowRight className="w-4 h-4" />
-            </button>
+        <div className="relative z-10 p-8 bg-slate-900/40 rounded-3xl border border-white/5 backdrop-blur-xl">
+          <div className="flex items-center gap-3 mb-3">
+            <Info className="w-5 h-5 text-amber-400" />
+            <span className="text-amber-400 font-bold text-sm tracking-widest uppercase">The Vision</span>
           </div>
-        )}
-
-        {/* STEP 2: PIN ENTRY (Returning User) */}
-        {mode === 'PIN_ENTRY' && (
-          <div className="space-y-4 animate-in fade-in slide-in-from-right-4">
-            <div className="text-center">
-              <p className="text-slate-400 text-sm mb-4">Welcome back, {email}</p>
-            </div>
-            <div className="relative">
-              <KeyRound className="absolute left-3 top-3.5 w-5 h-5 text-slate-500" />
-              <input 
-                type="password" 
-                maxLength={6}
-                placeholder="Enter 6-digit PIN"
-                value={pin}
-                onChange={(e) => setPin(e.target.value.replace(/\D/g, ''))}
-                className="w-full bg-slate-950 border border-slate-700 text-white pl-10 pr-4 py-3 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none tracking-widest"
-              />
-            </div>
-            <button 
-              onClick={handlePinLogin}
-              className="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-3 rounded-lg transition-all"
-            >
-              Unlock Vault
-            </button>
-            <button 
-              onClick={() => {
-                 // Trigger Forgot PIN Logic
-                 fetch('http://localhost:3001/api/auth/send-otp', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ email }),
-                 });
-                 setMode('OTP_ENTRY');
-              }}
-              className="w-full text-slate-500 text-sm hover:text-white transition-colors"
-            >
-              Forgot PIN?
-            </button>
-          </div>
-        )}
-
-        {/* STEP 3: OTP ENTRY (New User / Reset) */}
-        {mode === 'OTP_ENTRY' && (
-          <div className="space-y-4 animate-in fade-in slide-in-from-right-4">
-            <div className="text-center">
-              <p className="text-slate-400 text-sm mb-4">We sent a temporary code to <br/><span className="text-white">{email}</span></p>
-            </div>
-            <input 
-              type="text" 
-              placeholder="Enter 6-digit Code"
-              value={otp}
-              onChange={(e) => setOtp(e.target.value)}
-              className="w-full bg-slate-950 border border-slate-700 text-white text-center text-2xl tracking-widest py-3 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
-            />
-            <button 
-              onClick={handleOtpSubmit}
-              className="w-full bg-blue-600 hover:bg-blue-500 text-white font-bold py-3 rounded-lg transition-all"
-            >
-              Verify & Continue
-            </button>
-            <p className="text-xs text-slate-600 text-center mt-4">
-              (Check your server console for the code in this demo)
-            </p>
-          </div>
-        )}
-
-        {error && (
-          <div className="mt-4 p-3 bg-red-500/10 text-red-400 text-sm text-center rounded-lg">
-            {error}
-          </div>
-        )}
+          <p className="text-slate-400 leading-relaxed italic">
+            "Eliminating manual overhead in tender processing by bridging the gap between complex industrial specifications and digital compliance automation."
+          </p>
+        </div>
       </div>
+
+      {/* RIGHT HALF: ACTION / LOGIN */}
+      <div className="w-full md:w-1/2 flex items-center justify-center p-8 bg-slate-950 relative">
+        <div className="w-full max-w-md">
+          <AnimatePresence mode="wait">
+            {mode === 'EMAIL_ENTRY' && (
+              <motion.div 
+                key="email"
+                initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }}
+                className="space-y-8"
+              >
+                <div>
+                  <h3 className="text-3xl font-bold text-white mb-2">Initialize Session</h3>
+                  <p className="text-slate-500">Access your secure workspace via identity verification.</p>
+                </div>
+
+                <div className="w-full flex justify-center py-2">
+                  <GoogleLogin
+                    onSuccess={async (cred) => {
+                      const res = await fetch('http://localhost:3001/api/auth/login', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ token: cred.credential }),
+                      });
+                      const data = await res.json();
+                      onAuthSuccess(data);
+                    }}
+                  />
+                </div>
+
+                <div className="relative flex items-center">
+                  <div className="flex-grow border-t border-slate-800"></div>
+                  <span className="flex-shrink mx-4 text-slate-600 text-xs font-bold uppercase tracking-widest">or email access</span>
+                  <div className="flex-grow border-t border-slate-800"></div>
+                </div>
+
+                <div className="space-y-4">
+                  <div className="relative group">
+                    <Mail className="absolute left-4 top-4 w-5 h-5 text-slate-500 group-focus-within:text-blue-500 transition-colors" />
+                    <input 
+                      type="email" value={email} onChange={(e) => setEmail(e.target.value)}
+                      placeholder="Organization Email"
+                      className="w-full bg-slate-900 border border-slate-800 text-white pl-12 pr-4 py-4 rounded-2xl focus:ring-2 focus:ring-blue-600 outline-none transition-all placeholder:text-slate-700"
+                    />
+                  </div>
+                  <button 
+                    onClick={handleEmailSubmit} disabled={isLoading || !email}
+                    className="w-full bg-blue-600 hover:bg-blue-500 text-white font-bold py-4 rounded-2xl flex items-center justify-center gap-3 transition-all shadow-lg shadow-blue-900/20 active:scale-95"
+                  >
+                    Proceed <ArrowRight className="w-5 h-5" />
+                  </button>
+                </div>
+              </motion.div>
+            )}
+
+            {mode === 'PIN_ENTRY' && (
+              <motion.div 
+                key="pin"
+                initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }}
+                className="text-center space-y-8"
+              >
+                <div>
+                  <h3 className="text-3xl font-bold text-white mb-2">Master PIN</h3>
+                  <p className="text-slate-500">Identity confirmed for <span className="text-blue-400">{email}</span></p>
+                </div>
+
+                {/* 3D BUBBLE PIN DISPLAY */}
+                <div className="flex justify-center gap-3">
+                  {[...Array(6)].map((_, i) => (
+                    <motion.div 
+                      key={i}
+                      whileHover={{ scale: 1.05 }}
+                      className={`w-14 h-16 rounded-2xl flex items-center justify-center text-2xl font-bold transition-all duration-300
+                        ${pin[i] ? 'bg-blue-600 text-white border-blue-400 shadow-[0_0_20px_rgba(37,99,235,0.4)] scale-105' 
+                                 : 'bg-slate-900 text-slate-800 border-slate-800' }
+                        border-2 border-dashed border-opacity-50`}
+                    >
+                      {pin[i] ? <motion.span initial={{ scale: 0 }} animate={{ scale: 1 }}>•</motion.span> : ''}
+                    </motion.div>
+                  ))}
+                </div>
+
+                <input 
+                  ref={pinInputRef} type="password" maxLength={6} value={pin}
+                  onChange={(e) => {
+                    const val = e.target.value.replace(/\D/g, '');
+                    setPin(val);
+                    if (val.length === 6) handlePinLogin();
+                  }}
+                  className="absolute opacity-0 pointer-events-none"
+                />
+
+                <div className="pt-4 space-y-3">
+                  <button 
+                    onClick={handlePinLogin}
+                    className="w-full bg-gradient-to-r from-blue-700 to-blue-600 text-white font-bold py-4 rounded-2xl shadow-xl shadow-blue-900/30 transition-all hover:scale-[1.02]"
+                  >
+                    Unlock Vault
+                  </button>
+                  <button 
+                    onClick={() => setMode('OTP_ENTRY')}
+                    className="text-slate-600 text-sm hover:text-amber-400 transition-colors"
+                  >
+                    Forgotten your PIN?
+                  </button>
+                </div>
+              </motion.div>
+            )}
+
+            {mode === 'OTP_ENTRY' && (
+              <motion.div 
+                key="otp"
+                initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }}
+                className="space-y-8"
+              >
+                <div className="text-center">
+                  <h3 className="text-3xl font-bold text-white mb-2">Verification</h3>
+                  <p className="text-slate-500">Verification code sent to organization email.</p>
+                </div>
+
+                <input 
+                  type="text" maxLength={6} placeholder="0 0 0 0 0 0"
+                  value={otp} onChange={(e) => setOtp(e.target.value.replace(/\D/g, ''))}
+                  className="w-full bg-slate-900 border border-slate-800 text-white text-center text-4xl font-mono tracking-[0.5em] py-6 rounded-3xl outline-none focus:border-blue-500 transition-all"
+                />
+
+                <button 
+                  onClick={handleOtpSubmit}
+                  className="w-full bg-blue-600 hover:bg-blue-500 text-white font-bold py-4 rounded-2xl shadow-lg shadow-blue-900/20"
+                >
+                  Confirm Identity
+                </button>
+              </motion.div>
+            )}
+          </AnimatePresence>
+
+          {error && (
+            <motion.div 
+              initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}
+              className="mt-8 p-4 bg-red-500/10 border border-red-500/20 text-red-400 text-sm text-center rounded-2xl"
+            >
+              {error}
+            </motion.div>
+          )}
+        </div>
+      </div>
+
+      {/* FOOTER - SYSTEM CREDITS */}
+      <footer className="absolute bottom-6 w-full flex justify-center items-center pointer-events-none">
+        <div className="bg-slate-900/40 backdrop-blur-md border border-white/5 px-6 py-2 rounded-full shadow-2xl">
+          <p className="text-[10px] md:text-xs font-medium text-slate-500 tracking-[0.2em] uppercase">
+            System developed by <span className="text-blue-400 font-bold">Ansh Pratap Singh</span>
+          </p>
+        </div>
+      </footer>
     </div>
   );
 };

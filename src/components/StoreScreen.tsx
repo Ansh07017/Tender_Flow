@@ -1,4 +1,5 @@
-import React, { useState, useRef, useMemo } from 'react';
+import * as React from 'react';
+import { useState, useMemo, useRef } from 'react';
 import { SKU } from '../../types';
 import { AddItemModal } from './AddItemModal';
 

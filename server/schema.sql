@@ -46,16 +46,16 @@ CREATE TABLE IF NOT EXISTS product_inventory (
 );
 CREATE TABLE IF NOT EXISTS vault_access (
     id SERIAL PRIMARY KEY,
-    recovery_email VARCHAR(255) UNIQUE NOT NULL, -- Unique to prevent duplicates
-    pin_hash TEXT,                               -- Nullable initially until setup
+    recovery_email VARCHAR(255) UNIQUE NOT NULL,
+    pin_hash TEXT,
     two_fa_secret TEXT,
-    is_2fa_enabled BOOLEAN DEFAULT FALSE,        -- Missing in your original file
+    is_2fa_enabled BOOLEAN DEFAULT FALSE,
     is_setup_complete BOOLEAN DEFAULT FALSE,
     is_locked BOOLEAN DEFAULT FALSE,
     failed_attempts INTEGER DEFAULT 0,
-    last_login TIMESTAMP
+    last_login TIMESTAMP,
     reset_token VARCHAR(6),
-    reset_token_expiry TIMESTAMP;
+    reset_token_expiry TIMESTAMP
 );
 
 -- Initialize with your current configData.ts values

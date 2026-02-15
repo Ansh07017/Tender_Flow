@@ -1,10 +1,13 @@
-import React, { useState } from 'react';
+import * as React from 'react';
+import { useState } from 'react';
+import { Microscope } from 'lucide-react';
 import { SKU, Tender, DiscoveryFilters } from '../../types';
 
 interface DiscoveryScreenProps {
   inventory: SKU[];
   onSearch: (portal: string, category: string, filters: DiscoveryFilters) => void;
   onProcessDiscovery: (url: string) => void;
+  onOpenAdvanced: () => void;
   isScanning: boolean;
   results: Tender[];
 }
@@ -13,11 +16,10 @@ export const DiscoveryScreen: React.FC<DiscoveryScreenProps> = ({
   results = [],
   onSearch, 
   onProcessDiscovery,
+  onOpenAdvanced,
   isScanning,
 }) => {
   const [category, setCategory] = useState('');
-  
-  // Logistics & Financial State
   const [manualAvgKms, setManualAvgKms] = useState(400);
   const [manualRatePerKm, setManualRatePerKm] = useState(55);
   const [allowEMD, setAllowEMD] = useState(false);
@@ -120,6 +122,16 @@ export const DiscoveryScreen: React.FC<DiscoveryScreenProps> = ({
             >
               {isScanning ? 'Scraping GeM...' : 'Run Discovery'}
             </button>
+
+            <button 
+      onClick={onOpenAdvanced}
+      disabled={isScanning}
+      className="bg-gold-500 text-slate-950 px-6 py-4 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all shadow-[0_0_20px_rgba(212,175,55,0.3)] hover:scale-105 flex items-center gap-2"
+    >
+      <Microscope className="w-4 h-4" />
+      Advanced Search
+    </button>
+
           </div>
         </div>
 

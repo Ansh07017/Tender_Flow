@@ -1,6 +1,6 @@
 // server/index.ts
 import 'dotenv/config';
-import pool from './db';
+import { pool } from './db';
 import express, { Request, Response } from "express";
 import cors from "cors";
 import axios from 'axios';
@@ -12,6 +12,9 @@ import * as pdfjsLib from "pdfjs-dist/legacy/build/pdf.mjs";
 import { DiscoveryCoordinator } from "./discovery/DiscoveryCoord";
 import { getHelperBotResponse } from "./chatbot.js";
 import { login, setupPin, setup2FA, verify2FA, verifyVaultAccess,checkEmail,sendAuthOtp,verifyAuthOtp } from './auth';
+import multer from 'multer';
+import path from 'path';
+import fs from 'fs';
 
 process.on('uncaughtException', (err) => {
   console.error('🔥 CRITICAL UNCAUGHT EXCEPTION:', err);
@@ -21,20 +24,22 @@ process.on('unhandledRejection', (reason, promise) => {
   console.error('🔥 UNHANDLED REJECTION at:', promise, 'reason:', reason);
 });
 
+
 async function extractTextFromBuffer(buffer: ArrayBuffer): Promise<string> {
   const data = new Uint8Array(buffer);
   const loadingTask = pdfjsLib.getDocument({ data });
   const pdfDocument = await loadingTask.promise;
   
   let fullText = "";
-  // Iterate through all pages
   for (let pageNum = 1; pageNum <= pdfDocument.numPages; pageNum++) {
     const page = await pdfDocument.getPage(pageNum);
     const textContent = await page.getTextContent();
-    // Join items with spaces to maintain readable text
-    const pageText = textContent.items
+    
+    let pageText = textContent.items
       .map((item: any) => item.str)
       .join(" ");
+    pageText = pageText.replace(/\*{7,}/g, (match) => "Location not visible due to security reasons");
+    pageText = pageText.replace(/\*{5,}([A-Z\s,]+)/g, "$1");
     fullText += pageText + "\n";
   }
   return fullText;
@@ -43,7 +48,14 @@ async function extractTextFromBuffer(buffer: ArrayBuffer): Promise<string> {
 const app = express();
 app.use(cors());
 app.use(express.json({ limit: "10mb" }));
-
+app.post("/api/auth/login", login);           
+app.post("/api/vault/setup-pin", setupPin);   
+app.post("/api/vault/setup-2fa", setup2FA);
+app.post("/api/vault/verify-2fa", verify2FA);
+app.post("/api/vault/verify-pin", verifyVaultAccess);
+app.post("/api/auth/check-email", checkEmail);
+app.post("/api/auth/send-otp", sendAuthOtp);
+app.post("/api/auth/verify-otp", verifyAuthOtp);
 app.post("/api/discover", async (req: Request, res: Response) => {
   try {
     const { portal, category, filters, inventory } = req.body;
@@ -81,6 +93,55 @@ app.post("/api/discover", async (req: Request, res: Response) => {
       message: err.message 
     });
   }
+});
+
+const vaultDir = path.join(__dirname, '../vault_storage');
+if (!fs.existsSync(vaultDir)){
+    fs.mkdirSync(vaultDir);
+}
+
+const storage = multer.diskStorage({
+  destination: function (req, file, cb) {
+    cb(null, vaultDir)
+  },
+  filename: function (req, file, cb) {
+    // Save as: timestamp-filename
+    cb(null, Date.now() + '-' + file.originalname)
+  }
+});
+
+const upload = multer({ storage: storage });
+
+
+// --- ROUTES: Compliance Vault ---
+
+// 1. Upload Document
+app.post('/api/vault/upload', upload.single('file'), async (req: Request, res: Response) => {
+    try {
+        const { docId } = req.body;
+        const file = req.file;
+
+        if (!file) return res.status(400).json({ error: "No file uploaded" });
+
+        // Update database with new file path
+        // In a real app, you would parse the PDF expiration date here using Gemini
+        await pool.query(
+            "UPDATE compliance_vault SET file_path = $1, is_valid = true, expiry_date = $2 WHERE id = $3",
+            [file.path, '2026-12-31', docId] // Hardcoded expiry for demo, replace with AI extraction later
+        );
+
+        res.json({ success: true, filePath: file.path });
+    } catch (err) {
+        console.error("Upload Error:", err);
+        res.status(500).json({ error: "Upload failed" });
+    }
+});
+
+// 2. Secure Download (Only works if session verified)
+app.get('/api/vault/download/:filename', (req, res) => {
+    // In production, verify JWT/Session here first!
+    const filePath = path.join(vaultDir, req.params.filename);
+    res.download(filePath);
 });
 
 app.post("/api/copilot-chat", async (req: Request, res: Response) => {
@@ -220,14 +281,6 @@ app.post("/api/inventory/update-stock", async (req, res) => {
       });
     }
 
-app.post("/api/auth/login", login);           // For SignInScreen
-app.post("/api/vault/setup-pin", setupPin);   // For OnboardingWizard (Step 1)
-app.post("/api/vault/setup-2fa", setup2FA);   // For OnboardingWizard (Step 2)
-app.post("/api/vault/verify-2fa", verify2FA); // For OnboardingWizard (Step 2 Confirm)
-app.post("/api/vault/verify-pin", verifyVaultAccess); // For Dashboard/Vault Access
-app.post("/api/auth/check-email", checkEmail);
-app.post("/api/auth/send-otp", sendAuthOtp);
-app.post("/api/auth/verify-otp", verifyAuthOtp);
 
     /* -------------------------------
        3️⃣ Technical Agent

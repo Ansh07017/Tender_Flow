@@ -1,4 +1,5 @@
-import React, { useState, useCallback,useEffect } from 'react';
+import * as React from 'react';
+import { useState, useEffect,useCallback } from 'react';
 import { LogScreen } from './components/LogScreen';
 import { ConfigScreen } from './components/ConfigScreen';
 import { AnalysisScreen } from './components/AnalysisScreen';
@@ -11,6 +12,8 @@ import { productInventory as initialInventory } from '../data/storeData';
 import { HelperBot } from './components/Helperbot';
 import { SignInScreen } from './components/SignInScreen';
 import { OnboardingWizard } from './components/OnboardingWizard';
+import { AdvancedSearchScreen } from './components/AdvancedSearchScreen';
+import { VaultScreen } from './components/VaultScreen';
 
 import type { View, Tender,UserData,OnboardingStep } from '../types';
 import {
@@ -76,6 +79,17 @@ const [onboardingStep, setOnboardingStep] = useState<'NONE' | 'PIN_SETUP' | 'TWO
     },
     []
   );
+   /* -------------------- Authentication Check -------------------- */
+  useEffect(() => {
+    const savedUser = localStorage.getItem('tf_auth_user');
+    const setupDone = localStorage.getItem('tf_setup_complete') === 'true';
+
+    if (savedUser) {
+      setUser(JSON.parse(savedUser));
+      setIsAuthSessionActive(true);
+      if (setupDone) setOnboardingStep('NONE');
+    }
+  }, []);
   /* -------------------- Automated Discovery Logic -------------------- */
 useEffect(() => {
   if (!isAuthSessionActive) return;
@@ -267,9 +281,8 @@ const handleProcessRfp = (data: { source: 'URL' | 'File'; content: string; fileN
       onNavigateToDiscovery={() => setCurrentView('discovery')}
       onProcessRfp={handleProcessRfp}
       tenders={discoveryResults}
-      isScanning={isDiscoveryScanning} // Pass the scanning state
-      onProcessDiscovery={(url) => {
-        // This takes the real GeM URL and starts the deep parse
+      isScanning={isDiscoveryScanning}
+      onProcessDiscovery={(url: string) => { // Fixed: added string type
         const bidId = url.replace(/\/$/, '').split('/').pop(); 
         addRfp({ source: 'URL', content: url, fileName: `GeM_${bidId}` });
       }}
@@ -280,8 +293,19 @@ const handleProcessRfp = (data: { source: 'URL' | 'File'; content: string; fileN
   );
 
       case 'config':
-        return <ConfigScreen config={config} setConfig={setConfig} />;
-
+        return (
+          <ConfigScreen 
+            config={config} 
+            setConfig={setConfig} 
+            onOpenVault={() => setCurrentView('vault')} // <--- Pass the handler
+          />
+        );
+case 'vault':
+        return (
+          <VaultScreen 
+            onBack={() => setCurrentView('config')} 
+          />
+        );
       case 'logs':
         return <LogScreen logs={logs} />;
 
@@ -289,38 +313,71 @@ const handleProcessRfp = (data: { source: 'URL' | 'File'; content: string; fileN
         return <StoreScreen inventory={inventory} setInventory={setInventory} />;
 
       case 'discovery':
+  return (
+    <DiscoveryScreen 
+      inventory={inventory} 
+      results={discoveryResults}
+      isScanning={isDiscoveryScanning}
+      onOpenAdvanced={() => setCurrentView('advanced_search')} 
+      onSearch={async (portal: string, category: string, filters: any) => { // Fixed: added types
+        setIsDiscoveryScanning(true);
+        addLog('MASTER_AGENT', `Searching ${portal} for ${category}...`);
+        try {
+          const response = await fetch('http://localhost:3001/api/discover', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ portal, category, filters, inventory }),
+          });
+          const result = await response.json();
+          if (result.success) {
+            setDiscoveryResults(result.data);
+            addLog('MASTER_AGENT', `Found ${result.data.length} qualified bids.`);
+          }
+        } catch (error) {
+          addLog('SYSTEM', 'Discovery failed');
+        } finally {
+          setIsDiscoveryScanning(false);
+        }
+      }}
+      onProcessDiscovery={(url: string) => { // Fixed: added string type
+        const bidId = url.replace(/\/$/, '').split('/').pop();
+        addRfp({ source: 'URL', content: url, fileName: `GeM_${bidId}` });
+      }} 
+    />
+  );
+case 'advanced_search':
         return (
-          <DiscoveryScreen 
-            inventory={inventory} 
-            results={discoveryResults}
-            isScanning={isDiscoveryScanning} 
-            onSearch={async (portal, category, filters) => {
+          <AdvancedSearchScreen 
+            isScanning={isDiscoveryScanning}
+            onBack={() => setCurrentView('discovery')}
+            onRunAdvancedSearch={async (params) => {
               setIsDiscoveryScanning(true);
-              addLog('MASTER_AGENT', `Searching ${portal} for ${category}...`);
+              addLog('MASTER_AGENT', `Initiating Advanced Search: ${params.activeTab}`);
               try {
                 const response = await fetch('http://localhost:3001/api/discover', {
                   method: 'POST',
                   headers: { 'Content-Type': 'application/json' },
-                  body: JSON.stringify({ portal, category, filters, inventory }),
+                  body: JSON.stringify({ 
+                    portal: 'gem', 
+                    category: 'ADVANCED_MODE', // Signal to backend
+                    filters: params, 
+                    inventory 
+                  }),
                 });
                 const result = await response.json();
                 if (result.success) {
-                  setDiscoveryResults(result.data); //
-                  addLog('MASTER_AGENT', `Found ${result.data.length} qualified bids.`);
+                  setDiscoveryResults(result.data);
+                  addLog('MASTER_AGENT', `Advanced Search found ${result.data.length} bids.`);
+                  setCurrentView('discovery'); // Go back to results
                 }
-              } catch (error) {
-                addLog('SYSTEM', 'Discovery failed');
+              } catch (e) {
+                addLog('SYSTEM', 'Advanced Search Failed');
               } finally {
                 setIsDiscoveryScanning(false);
               }
             }}
-            onProcessDiscovery={(url) => {
-              const bidId = url.replace(/\/$/, '').split('/').pop(); // Fixes extraction logic
-              addRfp({ source: 'URL', content: url, fileName: `GeM_${bidId}` });
-            }} 
           />
         );
-
       case 'analysis':
   return selectedRfp ? (
     <AnalysisScreen 
@@ -354,16 +411,21 @@ const handleProcessRfp = (data: { source: 'URL' | 'File'; content: string; fileN
 // Inside App.tsx
 if (!isAuthSessionActive) {
   return (
-    <SignInScreen 
-      onAuthSuccess={(userData: UserData) => {
-        setUser(userData); 
-        setIsAuthSessionActive(true);
-        if (!userData.is_setup_complete) {
-          const nextStep = userData.has_pin ? 'TWO_FA_BIND' : 'PIN_SETUP';
-          setOnboardingStep(nextStep);
-        }
-      }} 
-    />
+   <SignInScreen 
+  onAuthSuccess={(userData: UserData) => {
+    // Save to LocalStorage for persistence
+    localStorage.setItem('tf_auth_user', JSON.stringify(userData));
+    localStorage.setItem('tf_setup_complete', String(userData.is_setup_complete));
+
+    setUser(userData); 
+    setIsAuthSessionActive(true);
+    
+    if (!userData.is_setup_complete) {
+      const nextStep = userData.has_pin ? 'TWO_FA_BIND' : 'PIN_SETUP';
+      setOnboardingStep(nextStep);
+    }
+  }} 
+/>
   );
 }
 

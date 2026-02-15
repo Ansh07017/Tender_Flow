@@ -1,15 +1,19 @@
-import React, { useState } from 'react';
+import * as React from 'react';
+import { useState} from 'react';
+import { ShieldCheck } from 'lucide-react';
 import { AppConfig, CompanyConfig, SigningAuthority } from '../../types';
 
 interface ConfigScreenProps {
   config: AppConfig;
   setConfig: React.Dispatch<React.SetStateAction<AppConfig>>;
+  onOpenVault: () => void;
 }
 
-export const ConfigScreen: React.FC<ConfigScreenProps> = ({ config, setConfig }) => {
+export const ConfigScreen: React.FC<ConfigScreenProps> = ({ config, setConfig,onOpenVault }) => {
   const [companyDetails, setCompanyDetails] = useState<CompanyConfig>(config.companyDetails);
   const [isAddingAuthority, setIsAddingAuthority] = useState(false);
   const [newAuth, setNewAuth] = useState({ name: '', designation: '', din: '' });
+
 
   const handleCompanyChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target;
@@ -42,13 +46,20 @@ export const ConfigScreen: React.FC<ConfigScreenProps> = ({ config, setConfig })
               Master Identity & Authorization Control
             </p>
           </div>
-        
+        <button 
+            onClick={onOpenVault}
+            className="flex items-center gap-2 bg-slate-950 text-blue-400 border border-blue-900/30 px-6 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all hover:bg-blue-600 hover:text-white shadow-[0_0_20px_rgba(37,99,235,0.2)]"
+          >
+            <ShieldCheck className="w-4 h-4" />
+            Manage Vault
+          </button>
         <button 
           onClick={handleSave}
           className="bg-white text-slate-950 px-6 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all shadow-[0_0_20px_rgba(212,175,55,0.3)]"
         >
           Push Changes to Cloud
         </button>
+        
       </div>
 
       {/* 2. Main Config Grid - No Scrolling */}

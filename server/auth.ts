@@ -10,6 +10,7 @@ const SALT_ROUNDS = 10;
 export const login = async (req: Request, res: Response) => {
   const { token } = req.body;
   try {
+    // 1. Verify Google Token
     const ticket = await client.verifyIdToken({
       idToken: token,
       audience: process.env.GOOGLE_CLIENT_ID,
@@ -19,24 +20,29 @@ export const login = async (req: Request, res: Response) => {
 
     if (!email) return res.status(400).json({ error: "Invalid Google Token" });
 
-    // Check if user exists, if not create placeholder
+    console.log(`[AUTH] Attempting login for: ${email}`);
+
+    // 2. Database Query
     let result = await query("SELECT * FROM vault_access WHERE recovery_email = $1", [email]);
     
     if (result.rows.length === 0) {
-      // Auto-register logic for demo purposes
-      await query("INSERT INTO vault_access (recovery_email) VALUES ($1)", [email]);
+      console.log(`[AUTH] New user detected. Registering...`);
+      await query("INSERT INTO vault_access (recovery_email, is_setup_complete) VALUES ($1, false)", [email]);
       result = await query("SELECT * FROM vault_access WHERE recovery_email = $1", [email]);
     }
 
     const user = result.rows[0];
+    console.log(`[AUTH] Success! Setup complete: ${user.is_setup_complete}`);
 
     res.json({
       email: user.recovery_email,
       is_setup_complete: user.is_setup_complete,
       has_pin: !!user.pin_hash
     });
-  } catch (err) {
-    res.status(500).json({ error: "Login failed" });
+  } catch (err: any) {
+    // THIS WILL SHOW THE REAL ERROR IN YOUR TERMINAL
+    console.error("🔥 LOGIN ERROR DETAILS:", err.message);
+    res.status(500).json({ error: "Login failed", details: err.message });
   }
 };
 

@@ -79,6 +79,8 @@ STRICT RULES:
 4. Output ONLY the JSON object. No preamble, no markdown.
 5. IMPORTANT: If any text contains double quotes, replace them with single quotes inside the JSON string to prevent parsing errors.
 6. Buyer added terms: Provide ONLY the first 10 most critical terms.Summarize each to under 100 characters. DO NOT include full legal text.
+7. 2. If an address contains 'Location not visible due to security reasons', keep that exact phrase in the JSON.
+3. If an address contains partial asterisks, extract only the readable City/State names.
 
 DOCUMENT CONTENT:
 ${content}

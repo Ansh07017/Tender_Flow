@@ -282,4 +282,6 @@ export type View =
   | 'logs'
   | 'processing'
   | 'discovery'
+  | 'advanced_search'
+  | 'vault'
   | 'analysis';
