@@ -66,6 +66,16 @@ const App: React.FC = () => {
   const [discoveryResults, setDiscoveryResults] = useState<Tender[]>([]);
   const [isDiscoveryScanning, setIsDiscoveryScanning] = useState(false);
   const [hasSearched, setHasSearched] = useState(false);
+  
+  // --- NEW STATE: VAULT LOCK ---
+  const [isVaultUnlocked, setIsVaultUnlocked] = useState(false);
+
+  // --- AUTO LOCK VAULT WHEN NAVIGATING AWAY ---
+  useEffect(() => {
+    if (currentView !== 'vault') {
+      setIsVaultUnlocked(false);
+    }
+  }, [currentView]);
 
   /* -------------------- Logging -------------------- */
   const addLog = useCallback(
@@ -102,10 +112,10 @@ const App: React.FC = () => {
     setIsAuthSessionActive(false);
     setOnboardingStep('NONE');
     setCurrentView('frontpage');
+    setIsVaultUnlocked(false); // Ensure vault is locked
     
     // 2. Clear Storage
     localStorage.removeItem('tf_auth_user');
-    // We keep 'tf_setup_complete' so they don't have to scan QR again, just enter PIN.
   };
 
   const handleChangePin = () => {
@@ -300,15 +310,27 @@ const App: React.FC = () => {
             config={config} 
             setConfig={setConfig} 
             onOpenVault={() => setCurrentView('vault')}
-            onLogout={handleLogout}       // <--- CONNECTED LOGOUT
-            onChangePin={handleChangePin} // <--- CONNECTED CHANGE PIN
+            onLogout={handleLogout}       
+            onChangePin={handleChangePin} 
           />
         );
 
       case 'vault':
+        // --- GATEKEEPER LOGIC ---
+        if (!isVaultUnlocked) {
+          return (
+            <SignInScreen 
+              initialEmail={user?.email} 
+              onAuthSuccess={() => setIsVaultUnlocked(true)}
+            />
+          );
+        }
         return (
           <VaultScreen 
-            onBack={() => setCurrentView('config')} 
+            onBack={() => {
+              setIsVaultUnlocked(false); // Lock it when they leave manually
+              setCurrentView('config');
+            }} 
           />
         );
 
@@ -324,9 +346,11 @@ const App: React.FC = () => {
             inventory={inventory} 
             results={discoveryResults}
             isScanning={isDiscoveryScanning}
+            hasSearched={hasSearched}
             onOpenAdvanced={() => setCurrentView('advanced_search')} 
             onSearch={async (portal: string, category: string, filters: any) => {
               setIsDiscoveryScanning(true);
+              setHasSearched(false);
               addLog('MASTER_AGENT', `Searching ${portal} for ${category}...`);
               try {
                 const response = await fetch('http://localhost:3001/api/discover', {
@@ -343,6 +367,7 @@ const App: React.FC = () => {
                 addLog('SYSTEM', 'Discovery failed');
               } finally {
                 setIsDiscoveryScanning(false);
+                setHasSearched(true);
               }
             }}
             onProcessDiscovery={(url: string) => {
@@ -359,6 +384,7 @@ const App: React.FC = () => {
             onBack={() => setCurrentView('discovery')}
             onRunAdvancedSearch={async (params) => {
               setIsDiscoveryScanning(true);
+              setHasSearched(false);
               addLog('MASTER_AGENT', `Initiating Advanced Search: ${params.activeTab}`);
               try {
                 const response = await fetch('http://localhost:3001/api/discover', {
@@ -381,12 +407,13 @@ const App: React.FC = () => {
                 addLog('SYSTEM', 'Advanced Search Failed');
               } finally {
                 setIsDiscoveryScanning(false);
+                setHasSearched(true);
               }
             }}
           />
         );
 
-        case 'final_recommendation': // <--- ADD THIS NEW CASE
+      case 'final_recommendation': 
         return selectedRfp ? (
           <FinalRecommendation 
             rfp={selectedRfp}
@@ -456,8 +483,6 @@ const App: React.FC = () => {
         onComplete={() => setOnboardingStep('NONE')} 
         onStepChange={(nextStep: OnboardingStep) => setOnboardingStep(nextStep)}
         onBack={() => {
-           // If they hit back during initial setup, log them out.
-           // If they hit back during "Change PIN", just cancel and go back to app.
            if (!user?.is_setup_complete) {
              handleLogout();
            } else {

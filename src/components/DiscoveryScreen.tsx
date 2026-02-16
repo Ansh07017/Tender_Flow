@@ -1,6 +1,6 @@
 import * as React from 'react';
 import { useState } from 'react';
-import { Microscope } from 'lucide-react';
+import { Microscope,SearchX } from 'lucide-react';
 import { SKU, Tender, DiscoveryFilters } from '../../types';
 
 interface DiscoveryScreenProps {
@@ -17,6 +17,7 @@ export const DiscoveryScreen: React.FC<DiscoveryScreenProps> = ({
   results = [],
   onSearch, 
   onProcessDiscovery,
+  hasSearched,
   onOpenAdvanced,
   isScanning,
 }) => {
@@ -166,14 +167,30 @@ export const DiscoveryScreen: React.FC<DiscoveryScreenProps> = ({
                 </div>
               ))}
             </div>
-          ) : (
-            <div className="h-full flex flex-col items-center justify-center opacity-30">
-              <div className="text-6xl mb-4">🏛️</div>
-              <p className="font-black uppercase tracking-[0.4em] text-xs">Waiting for GeM Command</p>
+         ) : (
+            // --- EMPTY STATE HANDLING ---
+            <div className="h-full flex flex-col items-center justify-center opacity-60">
+              {hasSearched ? (
+                <>
+                  <div className="w-20 h-20 bg-slate-900 rounded-full flex items-center justify-center mb-6 border border-slate-800">
+                    <SearchX className="w-10 h-10 text-slate-500" />
+                  </div>
+                  <h3 className="text-xl font-bold text-white mb-2">No Tenders Found</h3>
+                  <p className="text-slate-500 text-xs font-medium uppercase tracking-widest max-w-md text-center leading-relaxed">
+                    We couldn't find any live bids matching your criteria on GeM. <br/>
+                    Try adjusting your <span className="text-gold-500">filters</span> (Distance/Rate) or broadening the search category.
+                  </p>
+                </>
+              ) : (
+                <>
+                  <div className="text-6xl mb-4 grayscale opacity-50">🏛️</div>
+                  <p className="font-black uppercase tracking-[0.4em] text-xs text-slate-500">Waiting for GeM Command</p>
+                </>
+              )}
             </div>
           )}
         </div>
-      </div>
+    </div>
 
       <style>{`.scrollbar-hide::-webkit-scrollbar { display: none; }`}</style>
     </div>

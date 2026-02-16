@@ -8,11 +8,16 @@ import logo from '../assets/TenderFlow.png';
 
 interface SignInScreenProps {
   onAuthSuccess: (userData: UserData) => void;
+  initialEmail?: string; // <--- NEW PROP
 }
 
-export const SignInScreen: React.FC<SignInScreenProps> = ({ onAuthSuccess }) => {
-  const [email, setEmail] = useState('');
-  const [mode, setMode] = useState<'EMAIL_ENTRY' | 'PIN_ENTRY' | 'OTP_ENTRY'>('EMAIL_ENTRY');
+export const SignInScreen: React.FC<SignInScreenProps> = ({ onAuthSuccess, initialEmail }) => {
+  const [email, setEmail] = useState(initialEmail || '');
+  // If email is provided, start directly at PIN_ENTRY
+  const [mode, setMode] = useState<'EMAIL_ENTRY' | 'PIN_ENTRY' | 'OTP_ENTRY'>(
+    initialEmail ? 'PIN_ENTRY' : 'EMAIL_ENTRY'
+  );
+  
   const [otp, setOtp] = useState('');
   const [pin, setPin] = useState('');
   const [error, setError] = useState<string | null>(null);
@@ -22,7 +27,6 @@ export const SignInScreen: React.FC<SignInScreenProps> = ({ onAuthSuccess }) => 
   // Auto-focus hidden input for PIN bubbles
   useEffect(() => {
     if (mode === 'PIN_ENTRY') {
-      // Small timeout ensures DOM is ready for focus
       setTimeout(() => pinInputRef.current?.focus(), 100);
     }
   }, [mode]);
@@ -31,7 +35,6 @@ export const SignInScreen: React.FC<SignInScreenProps> = ({ onAuthSuccess }) => 
     setIsLoading(true);
     setError(null);
     try {
-      // 1. Check if user exists
       const res = await fetch('http://localhost:3001/api/auth/check-email', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -42,7 +45,6 @@ export const SignInScreen: React.FC<SignInScreenProps> = ({ onAuthSuccess }) => 
       if (data.exists) {
         setMode('PIN_ENTRY');
       } else {
-        // 2. New User? Send OTP immediately for signup
         await fetch('http://localhost:3001/api/auth/send-otp', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -81,12 +83,10 @@ export const SignInScreen: React.FC<SignInScreenProps> = ({ onAuthSuccess }) => 
     }
   };
 
-  // --- Forgot PIN Logic ---
   const handleForgotPin = async () => {
     setIsLoading(true);
     setError(null);
     try {
-      // 1. Send the OTP email
       const res = await fetch('http://localhost:3001/api/auth/send-otp', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -95,7 +95,7 @@ export const SignInScreen: React.FC<SignInScreenProps> = ({ onAuthSuccess }) => 
       const data = await res.json();
 
       if (data.success) {
-        setMode('OTP_ENTRY'); // Switch to OTP mode
+        setMode('OTP_ENTRY');
         alert(`Recovery code sent to ${email}`);
       } else {
         setError(data.message || "Failed to send recovery code.");
@@ -119,8 +119,6 @@ export const SignInScreen: React.FC<SignInScreenProps> = ({ onAuthSuccess }) => 
       const data = await res.json();
       
       if (data.success) {
-        // CRITICAL: Passing false here forces App.tsx to load OnboardingWizard
-        // allowing the user to set a NEW PIN.
         onAuthSuccess({ email, is_setup_complete: false, has_pin: false });
       } else {
         setError("Invalid code.");
@@ -135,7 +133,7 @@ export const SignInScreen: React.FC<SignInScreenProps> = ({ onAuthSuccess }) => 
   return (
     <div className="min-h-screen w-full bg-slate-950 flex flex-col md:flex-row overflow-hidden font-sans relative">
       
-      {/* LEFT HALF: THE IDEA & STORY */}
+      {/* LEFT HALF */}
       <div className="hidden md:flex md:w-1/2 bg-gradient-to-br from-blue-900/20 via-slate-950 to-slate-950 p-16 flex-col justify-between border-r border-slate-800/50 relative">
         <div className="absolute top-0 left-0 w-full h-full opacity-10 pointer-events-none bg-[url('https://www.transparenttextures.com/patterns/carbon-fibre.png')]"></div>
         
@@ -156,6 +154,7 @@ export const SignInScreen: React.FC<SignInScreenProps> = ({ onAuthSuccess }) => 
               </span>
             </h2>
             <div className="space-y-4">
+              {/* Info Items */}
               <div className="flex items-start gap-4 text-slate-300">
                 <CheckCircle2 className="w-6 h-6 text-blue-500 mt-1 flex-shrink-0" />
                 <p className="text-lg">AI-powered technical matching for government tenders and RFPs.</p>
@@ -179,7 +178,7 @@ export const SignInScreen: React.FC<SignInScreenProps> = ({ onAuthSuccess }) => 
         </div>
       </div>
 
-      {/* RIGHT HALF: ACTION / LOGIN */}
+      {/* RIGHT HALF */}
       <div className="w-full md:w-1/2 flex items-center justify-center p-8 bg-slate-950 relative">
         <div className="w-full max-w-md">
           <AnimatePresence mode="wait">
@@ -240,7 +239,8 @@ export const SignInScreen: React.FC<SignInScreenProps> = ({ onAuthSuccess }) => 
                 className="text-center space-y-8"
               >
                 <div className="relative">
-                  {/* --- FIXED: BACK BUTTON TO SWITCH ACCOUNT --- */}
+                  {/* Back button logic: if initialEmail was passed (Unlock mode), maybe we don't show "Switch Account" 
+                      or we allow it to fall back to EMAIL_ENTRY. For simplicity, leaving it allows re-entry of email if needed. */}
                   <button 
                     onClick={() => setMode('EMAIL_ENTRY')}
                     className="absolute -top-10 left-0 flex items-center gap-1 text-[10px] font-bold text-slate-500 uppercase tracking-widest hover:text-white transition-colors"
@@ -254,7 +254,6 @@ export const SignInScreen: React.FC<SignInScreenProps> = ({ onAuthSuccess }) => 
 
                 {/* 3D BUBBLE PIN DISPLAY */}
                 <div className="relative w-full h-20">
-                  {/* Visuals */}
                   <div className="absolute inset-0 flex justify-center gap-3 pointer-events-none z-10">
                     {[...Array(6)].map((_, i) => (
                       <motion.div 
@@ -270,7 +269,6 @@ export const SignInScreen: React.FC<SignInScreenProps> = ({ onAuthSuccess }) => 
                     ))}
                   </div>
 
-                  {/* --- FIXED: CLICKABLE INPUT OVERLAY --- */}
                   <input 
                     ref={pinInputRef} 
                     type="tel" 
@@ -294,7 +292,6 @@ export const SignInScreen: React.FC<SignInScreenProps> = ({ onAuthSuccess }) => 
                     Unlock Vault
                   </button>
                   
-                  {/* --- FIXED: FORGOT PIN BUTTON WIRED UP --- */}
                   <button 
                     onClick={handleForgotPin}
                     disabled={isLoading}
@@ -353,7 +350,6 @@ export const SignInScreen: React.FC<SignInScreenProps> = ({ onAuthSuccess }) => 
         </div>
       </div>
 
-      {/* FOOTER - SYSTEM CREDITS */}
       <footer className="absolute bottom-6 w-full flex justify-center items-center pointer-events-none">
         <div className="bg-slate-900/40 backdrop-blur-md border border-white/5 px-6 py-2 rounded-full shadow-2xl">
           <p className="text-[10px] md:text-xs font-medium text-slate-500 tracking-[0.2em] uppercase">
