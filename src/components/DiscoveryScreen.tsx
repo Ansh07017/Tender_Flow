@@ -9,6 +9,7 @@ interface DiscoveryScreenProps {
   onProcessDiscovery: (url: string) => void;
   onOpenAdvanced: () => void;
   isScanning: boolean;
+  hasSearched: boolean;
   results: Tender[];
 }
 
@@ -126,7 +127,7 @@ export const DiscoveryScreen: React.FC<DiscoveryScreenProps> = ({
             <button 
       onClick={onOpenAdvanced}
       disabled={isScanning}
-      className="bg-gold-500 text-slate-950 px-6 py-4 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all shadow-[0_0_20px_rgba(212,175,55,0.3)] hover:scale-105 flex items-center gap-2"
+      className="bg-white text-slate-950 px-6 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all shadow-[0_0_20px_rgba(212,175,55,0.3)] hover:scale-105"
     >
       <Microscope className="w-4 h-4" />
       Advanced Search

@@ -1,5 +1,5 @@
 import * as React from 'react';
-import { useState, useEffect,useCallback } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { LogScreen } from './components/LogScreen';
 import { ConfigScreen } from './components/ConfigScreen';
 import { AnalysisScreen } from './components/AnalysisScreen';
@@ -14,8 +14,8 @@ import { SignInScreen } from './components/SignInScreen';
 import { OnboardingWizard } from './components/OnboardingWizard';
 import { AdvancedSearchScreen } from './components/AdvancedSearchScreen';
 import { VaultScreen } from './components/VaultScreen';
-
-import type { View, Tender,UserData,OnboardingStep } from '../types';
+import { FinalRecommendation } from './components/FinalRecommendation';
+import type { View, Tender, UserData, OnboardingStep } from '../types';
 import {
   AgentName,
   LogEntry,
@@ -30,13 +30,13 @@ import { initialConfig } from '../data/configData';
     Backend Service (Frontend → Backend ONLY)
 ------------------------------------------------------------------- */
 const apiService = {
-  parseRFP: async (rfpContent: string, inventory: any[]) => { // Add inventory parameter here
+  parseRFP: async (rfpContent: string, inventory: any[]) => {
     const res = await fetch('http://localhost:3001/api/parse-rfp', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ 
         content: rfpContent, 
-        inventory // Shorthand now works because 'inventory' is in the function scope
+        inventory 
       }),
     });
 
@@ -49,11 +49,13 @@ const apiService = {
     return json.data;
   },
 };
+
 let hasTriggeredDiscovery = false;
+
 const App: React.FC = () => {
-const [user, setUser] = useState<UserData | null>(null);
-const [isAuthSessionActive, setIsAuthSessionActive] = useState(false);
-const [onboardingStep, setOnboardingStep] = useState<'NONE' | 'PIN_SETUP' | 'TWO_FA_BIND'>('NONE');
+  const [user, setUser] = useState<UserData | null>(null);
+  const [isAuthSessionActive, setIsAuthSessionActive] = useState(false);
+  const [onboardingStep, setOnboardingStep] = useState<'NONE' | 'PIN_SETUP' | 'TWO_FA_BIND'>('NONE');
   const [currentView, setCurrentView] = useState<View | 'frontpage'>('frontpage');
   const [rfps, setRfps] = useState<Rfp[]>(initialRfpList);
   const [logs, setLogs] = useState<LogEntry[]>([]);
@@ -63,6 +65,7 @@ const [onboardingStep, setOnboardingStep] = useState<'NONE' | 'PIN_SETUP' | 'TWO
   const [inventory, setInventory] = useState(initialInventory);
   const [discoveryResults, setDiscoveryResults] = useState<Tender[]>([]);
   const [isDiscoveryScanning, setIsDiscoveryScanning] = useState(false);
+  const [hasSearched, setHasSearched] = useState(false);
 
   /* -------------------- Logging -------------------- */
   const addLog = useCallback(
@@ -79,7 +82,8 @@ const [onboardingStep, setOnboardingStep] = useState<'NONE' | 'PIN_SETUP' | 'TWO
     },
     []
   );
-   /* -------------------- Authentication Check -------------------- */
+
+  /* -------------------- Authentication Check -------------------- */
   useEffect(() => {
     const savedUser = localStorage.getItem('tf_auth_user');
     const setupDone = localStorage.getItem('tf_setup_complete') === 'true';
@@ -90,149 +94,151 @@ const [onboardingStep, setOnboardingStep] = useState<'NONE' | 'PIN_SETUP' | 'TWO
       if (setupDone) setOnboardingStep('NONE');
     }
   }, []);
-  /* -------------------- Automated Discovery Logic -------------------- */
-useEffect(() => {
-  if (!isAuthSessionActive) return;
-  if (hasTriggeredDiscovery) return;
-  hasTriggeredDiscovery = true;
-  const triggerAutomatedDiscovery = async () => {
-    // 1. Find the item with the highest available quantity in Jalandhar stock
-    const heroProduct = [...inventory]
-  .filter(item => item.availableQuantity > 0) // Only items we actually have
-  .sort((a, b) => b.availableQuantity - a.availableQuantity)[0];
+
+  /* -------------------- AUTH ACTIONS (New) -------------------- */
+  const handleLogout = () => {
+    // 1. Clear State
+    setUser(null);
+    setIsAuthSessionActive(false);
+    setOnboardingStep('NONE');
+    setCurrentView('frontpage');
     
-    if (!heroProduct) return;
-
-    setIsDiscoveryScanning(true);
-    addLog('MASTER_AGENT', `Auto-Discovery: Identifying tenders for high-stock item: ${heroProduct.productCategory}`);
-
-    try {
-      const response = await fetch('http://localhost:3001/api/discover', {
-  method: 'POST',
-  headers: { 'Content-Type': 'application/json' },
-  body: JSON.stringify({ 
-    portal: 'gem', 
-    category: heroProduct.productCategory, 
-    filters: {
-      ...config.discoveryFilters, 
-      bypassFilters: true      
-    },
-    inventory 
-  }),
-});
-
-      const result = await response.json();
-      if (result.success) {
-        setDiscoveryResults(result.data); // Updates discoveryResults state
-        addLog('MASTER_AGENT', `Auto-Discovery complete. Found ${result.data.length} matches for ${heroProduct.productCategory}`);
-      }
-    } catch (error) {
-      addLog('SYSTEM', 'Automated Discovery background task failed');
-    } finally {
-      setIsDiscoveryScanning(false);
-    }
+    // 2. Clear Storage
+    localStorage.removeItem('tf_auth_user');
+    // We keep 'tf_setup_complete' so they don't have to scan QR again, just enter PIN.
   };
-  triggerAutomatedDiscovery();
-}, [isAuthSessionActive]); 
 
-  /* -------------------- RFP State -------------------- */
+  const handleChangePin = () => {
+    // Re-trigger the PIN setup wizard
+    setOnboardingStep('PIN_SETUP');
+  };
+
+  /* -------------------- Automated Discovery Logic -------------------- */
+  useEffect(() => {
+    if (!isAuthSessionActive) return;
+    if (hasTriggeredDiscovery) return;
+    hasTriggeredDiscovery = true;
+    
+    const triggerAutomatedDiscovery = async () => {
+      const heroProduct = [...inventory]
+        .filter(item => item.availableQuantity > 0)
+        .sort((a, b) => b.availableQuantity - a.availableQuantity)[0];
+      
+      if (!heroProduct) return;
+
+      setIsDiscoveryScanning(true);
+      addLog('MASTER_AGENT', `Auto-Discovery: Identifying tenders for high-stock item: ${heroProduct.productCategory}`);
+
+      try {
+        const response = await fetch('http://localhost:3001/api/discover', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ 
+            portal: 'gem', 
+            category: heroProduct.productCategory, 
+            filters: {
+              ...config.discoveryFilters, 
+              bypassFilters: true      
+            },
+            inventory 
+          }),
+        });
+
+        const result = await response.json();
+        if (result.success) {
+          setDiscoveryResults(result.data);
+          addLog('MASTER_AGENT', `Auto-Discovery complete. Found ${result.data.length} matches for ${heroProduct.productCategory}`);
+        }
+      } catch (error) {
+        addLog('SYSTEM', 'Automated Discovery background task failed');
+      } finally {
+        setIsDiscoveryScanning(false);
+      }
+    };
+    triggerAutomatedDiscovery();
+  }, [isAuthSessionActive]); 
+
+  /* -------------------- RFP State & Processing -------------------- */
   const updateRfpState = (rfpId: string, updates: Partial<Rfp>) => {
     setRfps(prev =>
       prev.map(rfp =>
         rfp.id === rfpId
-          ? {
-              ...rfp,
-              ...updates,
-              agentOutputs: {
-                ...rfp.agentOutputs,
-                ...updates.agentOutputs,
-              },
-            }
+          ? { ...rfp, ...updates, agentOutputs: { ...rfp.agentOutputs, ...updates.agentOutputs } }
           : rfp
       )
     );
   };
 
-  /* -------------------- Main Process Pipeline -------------------- */
-    const processRfp = async (rfpId: string, override?: Rfp) => {
-      const rfp = override || rfps.find(r => r.id === rfpId);
-      if (!rfp) return;
+  const processRfp = async (rfpId: string, override?: Rfp) => {
+    const rfp = override || rfps.find(r => r.id === rfpId);
+    if (!rfp) return;
 
-      const startTime = Date.now();
-      try {
-        addLog('SYSTEM', `Processing started for ${rfpId}`);
+    const startTime = Date.now();
+    try {
+      addLog('SYSTEM', `Processing started for ${rfpId}`);
 
-        let contentToParse = rfp.rawDocument;
-        if (rfp.source === 'URL') {
-          updateRfpState(rfpId, { status: 'Extracting', activeAgent: 'SALES_AGENT' });
-      addLog('DISCOVERY_AGENT', 'Fetching document from GeM portal...');
+      let contentToParse = rfp.rawDocument;
+      if (rfp.source === 'URL') {
+        updateRfpState(rfpId, { status: 'Extracting', activeAgent: 'SALES_AGENT' });
+        addLog('DISCOVERY_AGENT', 'Fetching document from GeM portal...');
 
-      const fetchRes = await fetch('http://localhost:3001/api/fetch-rfp-url', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ url: rfp.rawDocument }),
-      });
-
-      if (!fetchRes.ok) throw new Error('Failed to fetch document text from URL');
-      
-      const fetchData = await fetchRes.json();
-      contentToParse = fetchData.content; // The actual PDF text
-      addLog('SALES_AGENT', 'Text extraction successful');
-    }
-        updateRfpState(rfpId, { status: 'Parsing', activeAgent: 'PARSING_ENGINE' });
-        addLog('PARSING_ENGINE', 'Sending document to backend');
-        
-        //const backendResult = await apiService.parseRFP(rfp.rawDocument);
-        const backendResult = await apiService.parseRFP(contentToParse,inventory);
-        
-        
-        addLog('PARSING_ENGINE', 'Backend completed', backendResult);
-        updateRfpState(rfpId, {
-          status: 'Complete',
-          activeAgent: 'FINALIZING_AGENT',
-          agentOutputs: {
-    parsedData: backendResult.parsedData, 
-    technicalAnalysis: backendResult.technicalAnalysis, 
-    pricing: backendResult.pricing },
-          processingDuration: Math.round((Date.now() - startTime) / 1000),
+        const fetchRes = await fetch('http://localhost:3001/api/fetch-rfp-url', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ url: rfp.rawDocument }),
         });
-        addLog('FINALIZING_AGENT', 'Report finalized');
-      } catch (err: any) {
-        updateRfpState(rfpId, { status: 'Error' });
-        addLog('SYSTEM', err.message || 'Processing failed');
+
+        if (!fetchRes.ok) throw new Error('Failed to fetch document text from URL');
+        
+        const fetchData = await fetchRes.json();
+        contentToParse = fetchData.content;
+        addLog('SALES_AGENT', 'Text extraction successful');
       }
-    };
-/* Inside App.tsx */
-/* Inside App.tsx */
-
-const handleProcessRfp = (data: { source: 'URL' | 'File'; content: string; fileName?: string }) => {
-  // 1. Log the ingestion start
-  addLog('SYSTEM', `Manual Ingestion Started: Source [${data.source}] ${data.fileName || ''}`);
-
-  // 2. Create a new RFP object to store the ingested data
-  const tempId = `TDR-MANUAL-${Date.now()}`;
-  const newRfp: Rfp = {
-    id: tempId,
-    organisation: 'Manual Ingestion',
-    bidType: 'Parsing...',
-    closingDate: new Date(),
-    status: 'Pending',
-    rawDocument: data.content,
-    source: data.source,
-    fileName: data.fileName,
-    agentOutputs: {},
+      updateRfpState(rfpId, { status: 'Parsing', activeAgent: 'PARSING_ENGINE' });
+      addLog('PARSING_ENGINE', 'Sending document to backend');
+      
+      const backendResult = await apiService.parseRFP(contentToParse, inventory);
+      
+      addLog('PARSING_ENGINE', 'Backend completed', backendResult);
+      updateRfpState(rfpId, {
+        status: 'Complete',
+        activeAgent: 'FINALIZING_AGENT',
+        agentOutputs: {
+          parsedData: backendResult.parsedData, 
+          technicalAnalysis: backendResult.technicalAnalysis, 
+          pricing: backendResult.pricing 
+        },
+        processingDuration: Math.round((Date.now() - startTime) / 1000),
+      });
+      addLog('FINALIZING_AGENT', 'Report finalized');
+    } catch (err: any) {
+      updateRfpState(rfpId, { status: 'Error' });
+      addLog('SYSTEM', err.message || 'Processing failed');
+    }
   };
 
-  // 3. Update state and REDIRECT
-  setRfps(prev => [newRfp, ...prev]);
-  setProcessingStartTime(new Date());
-  setSelectedRfpId(tempId);
-  setCurrentView('processing'); // This triggers the redirect to the processing screen
+  const handleProcessRfp = (data: { source: 'URL' | 'File'; content: string; fileName?: string }) => {
+    addLog('SYSTEM', `Manual Ingestion Started: Source [${data.source}] ${data.fileName || ''}`);
+    const tempId = `TDR-MANUAL-${Date.now()}`;
+    const newRfp: Rfp = {
+      id: tempId,
+      organisation: 'Manual Ingestion',
+      bidType: 'Parsing...',
+      closingDate: new Date(),
+      status: 'Pending',
+      rawDocument: data.content,
+      source: data.source,
+      fileName: data.fileName,
+      agentOutputs: {},
+    };
 
-  // 4. Start the actual backend processing
-  processRfp(tempId, newRfp);
-};
-  /* -------------------- Navigation Helpers -------------------- */
+    setRfps(prev => [newRfp, ...prev]);
+    setProcessingStartTime(new Date());
+    setSelectedRfpId(tempId);
+    setCurrentView('processing');
+    processRfp(tempId, newRfp);
+  };
+
   const handleStartProcessing = (rfpId: string, rfpObject?: Rfp) => {
     setProcessingStartTime(new Date());
     setSelectedRfpId(rfpId);
@@ -241,7 +247,6 @@ const handleProcessRfp = (data: { source: 'URL' | 'File'; content: string; fileN
   };
 
   const handleViewAnalysis = (rfpId: string) => {
-    console.log("Navigating to Analysis for:", rfpId);
     setSelectedRfpId(rfpId);
     setCurrentView('analysis');
   };
@@ -274,38 +279,39 @@ const handleProcessRfp = (data: { source: 'URL' | 'File'; content: string; fileN
     const selectedRfp = rfps.find(r => r.id === selectedRfpId);
 
     switch (currentView) {
-      // 2. Integration of the new Front Page with data bridges
       case 'frontpage':
-  return (
-    <FrontPage 
-      onNavigateToDiscovery={() => setCurrentView('discovery')}
-      onProcessRfp={handleProcessRfp}
-      tenders={discoveryResults}
-      isScanning={isDiscoveryScanning}
-      onProcessDiscovery={(url: string) => { // Fixed: added string type
-        const bidId = url.replace(/\/$/, '').split('/').pop(); 
-        addRfp({ source: 'URL', content: url, fileName: `GeM_${bidId}` });
-      }}
-      onRefreshDiscovery={() => {
-        window.location.reload();
-      }}
-    />
-  );
+        return (
+          <FrontPage 
+            onNavigateToDiscovery={() => setCurrentView('discovery')}
+            onProcessRfp={handleProcessRfp}
+            tenders={discoveryResults}
+            isScanning={isDiscoveryScanning}
+            onProcessDiscovery={(url: string) => {
+              const bidId = url.replace(/\/$/, '').split('/').pop(); 
+              addRfp({ source: 'URL', content: url, fileName: `GeM_${bidId}` });
+            }}
+            onRefreshDiscovery={() => window.location.reload()}
+          />
+        );
 
       case 'config':
         return (
           <ConfigScreen 
             config={config} 
             setConfig={setConfig} 
-            onOpenVault={() => setCurrentView('vault')} // <--- Pass the handler
+            onOpenVault={() => setCurrentView('vault')}
+            onLogout={handleLogout}       // <--- CONNECTED LOGOUT
+            onChangePin={handleChangePin} // <--- CONNECTED CHANGE PIN
           />
         );
-case 'vault':
+
+      case 'vault':
         return (
           <VaultScreen 
             onBack={() => setCurrentView('config')} 
           />
         );
+
       case 'logs':
         return <LogScreen logs={logs} />;
 
@@ -313,39 +319,40 @@ case 'vault':
         return <StoreScreen inventory={inventory} setInventory={setInventory} />;
 
       case 'discovery':
-  return (
-    <DiscoveryScreen 
-      inventory={inventory} 
-      results={discoveryResults}
-      isScanning={isDiscoveryScanning}
-      onOpenAdvanced={() => setCurrentView('advanced_search')} 
-      onSearch={async (portal: string, category: string, filters: any) => { // Fixed: added types
-        setIsDiscoveryScanning(true);
-        addLog('MASTER_AGENT', `Searching ${portal} for ${category}...`);
-        try {
-          const response = await fetch('http://localhost:3001/api/discover', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ portal, category, filters, inventory }),
-          });
-          const result = await response.json();
-          if (result.success) {
-            setDiscoveryResults(result.data);
-            addLog('MASTER_AGENT', `Found ${result.data.length} qualified bids.`);
-          }
-        } catch (error) {
-          addLog('SYSTEM', 'Discovery failed');
-        } finally {
-          setIsDiscoveryScanning(false);
-        }
-      }}
-      onProcessDiscovery={(url: string) => { // Fixed: added string type
-        const bidId = url.replace(/\/$/, '').split('/').pop();
-        addRfp({ source: 'URL', content: url, fileName: `GeM_${bidId}` });
-      }} 
-    />
-  );
-case 'advanced_search':
+        return (
+          <DiscoveryScreen 
+            inventory={inventory} 
+            results={discoveryResults}
+            isScanning={isDiscoveryScanning}
+            onOpenAdvanced={() => setCurrentView('advanced_search')} 
+            onSearch={async (portal: string, category: string, filters: any) => {
+              setIsDiscoveryScanning(true);
+              addLog('MASTER_AGENT', `Searching ${portal} for ${category}...`);
+              try {
+                const response = await fetch('http://localhost:3001/api/discover', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ portal, category, filters, inventory }),
+                });
+                const result = await response.json();
+                if (result.success) {
+                  setDiscoveryResults(result.data);
+                  addLog('MASTER_AGENT', `Found ${result.data.length} qualified bids.`);
+                }
+              } catch (error) {
+                addLog('SYSTEM', 'Discovery failed');
+              } finally {
+                setIsDiscoveryScanning(false);
+              }
+            }}
+            onProcessDiscovery={(url: string) => {
+              const bidId = url.replace(/\/$/, '').split('/').pop();
+              addRfp({ source: 'URL', content: url, fileName: `GeM_${bidId}` });
+            }} 
+          />
+        );
+
+      case 'advanced_search':
         return (
           <AdvancedSearchScreen 
             isScanning={isDiscoveryScanning}
@@ -359,7 +366,7 @@ case 'advanced_search':
                   headers: { 'Content-Type': 'application/json' },
                   body: JSON.stringify({ 
                     portal: 'gem', 
-                    category: 'ADVANCED_MODE', // Signal to backend
+                    category: 'ADVANCED_MODE',
                     filters: params, 
                     inventory 
                   }),
@@ -368,7 +375,7 @@ case 'advanced_search':
                 if (result.success) {
                   setDiscoveryResults(result.data);
                   addLog('MASTER_AGENT', `Advanced Search found ${result.data.length} bids.`);
-                  setCurrentView('discovery'); // Go back to results
+                  setCurrentView('discovery');
                 }
               } catch (e) {
                 addLog('SYSTEM', 'Advanced Search Failed');
@@ -378,21 +385,33 @@ case 'advanced_search':
             }}
           />
         );
+
+        case 'final_recommendation': // <--- ADD THIS NEW CASE
+        return selectedRfp ? (
+          <FinalRecommendation 
+            rfp={selectedRfp}
+            onBack={() => setCurrentView('analysis')}
+            onCancel={() => {
+              setSelectedRfpId(null);
+              setCurrentView('frontpage');
+              setProcessingStartTime(null);
+            }}
+          />
+        ) : null;
+
       case 'analysis':
-  return selectedRfp ? (
-    <AnalysisScreen 
-      rfp={selectedRfp} 
-      // 1. BACK BUTTON -> Goes to Processing Screen (Snapshot)
-      onBack={() => setCurrentView('processing')} 
-      
-      // 2. CANCEL BUTTON -> Goes to Frontpage (Resets selection)
-      onCancel={() => {
-        setSelectedRfpId(null);
-        setCurrentView('frontpage');
-        setProcessingStartTime(null);
-      }}
-    />
-  ) : null;
+        return selectedRfp ? (
+          <AnalysisScreen 
+            rfp={selectedRfp} 
+            onBack={() => setCurrentView('processing')} 
+            onCancel={() => {
+              setSelectedRfpId(null);
+              setCurrentView('frontpage');
+              setProcessingStartTime(null);
+            }}
+            onProceed={() => setCurrentView('final_recommendation')}
+          />
+        ) : null;
 
       case 'processing':
         return selectedRfp ? (
@@ -408,54 +427,60 @@ case 'advanced_search':
     }
   };
 
-// Inside App.tsx
-if (!isAuthSessionActive) {
-  return (
-   <SignInScreen 
-  onAuthSuccess={(userData: UserData) => {
-    // Save to LocalStorage for persistence
-    localStorage.setItem('tf_auth_user', JSON.stringify(userData));
-    localStorage.setItem('tf_setup_complete', String(userData.is_setup_complete));
+  // --- GATE 1: AUTHENTICATION ---
+  if (!isAuthSessionActive) {
+    return (
+      <SignInScreen 
+        onAuthSuccess={(userData: UserData) => {
+          localStorage.setItem('tf_auth_user', JSON.stringify(userData));
+          localStorage.setItem('tf_setup_complete', String(userData.is_setup_complete));
 
-    setUser(userData); 
-    setIsAuthSessionActive(true);
-    
-    if (!userData.is_setup_complete) {
-      const nextStep = userData.has_pin ? 'TWO_FA_BIND' : 'PIN_SETUP';
-      setOnboardingStep(nextStep);
-    }
-  }} 
-/>
-  );
-}
+          setUser(userData); 
+          setIsAuthSessionActive(true);
+          
+          if (!userData.is_setup_complete) {
+            const nextStep = userData.has_pin ? 'TWO_FA_BIND' : 'PIN_SETUP';
+            setOnboardingStep(nextStep);
+          }
+        }} 
+      />
+    );
+  }
 
-// --- GATE 2: ONBOARDING ---
-if (onboardingStep !== 'NONE') {
+  // --- GATE 2: ONBOARDING / CHANGE PIN ---
+  if (onboardingStep !== 'NONE') {
+    return (
+      <OnboardingWizard 
+        step={onboardingStep} 
+        email={user?.email || ''}
+        onComplete={() => setOnboardingStep('NONE')} 
+        onStepChange={(nextStep: OnboardingStep) => setOnboardingStep(nextStep)}
+        onBack={() => {
+           // If they hit back during initial setup, log them out.
+           // If they hit back during "Change PIN", just cancel and go back to app.
+           if (!user?.is_setup_complete) {
+             handleLogout();
+           } else {
+             setOnboardingStep('NONE');
+           }
+        }}
+      />
+    );
+  }
+
   return (
-    <OnboardingWizard 
-      step={onboardingStep} 
-      email={user?.email || ''}
-      onComplete={() => setOnboardingStep('NONE')} 
-      onStepChange={(nextStep: OnboardingStep) => setOnboardingStep(nextStep)}
-    />
-  );
-}
- return (
-   
     <div className="h-screen w-full bg-slate-950 flex flex-col overflow-hidden font-sans">
-      
-    
-    <Header currentView={currentView} setCurrentView={setCurrentView} />
+      <Header currentView={currentView} setCurrentView={setCurrentView} />
 
-    <main className="flex-grow relative overflow-hidden">
-
-      <div className="absolute top-0 right-0 w-[600px] h-[600px] bg-gold-500/5 blur-[150px] rounded-full pointer-events-none" />
+      <main className="flex-grow relative overflow-hidden">
+        <div className="absolute top-0 right-0 w-[600px] h-[600px] bg-gold-500/5 blur-[150px] rounded-full pointer-events-none" />
+        <div className="h-full w-full p-8 relative z-10 overflow-hidden">
+          {renderContent()}
+        </div>
+      </main>
       
-      <div className="h-full w-full p-8 relative z-10 overflow-hidden">
-        {renderContent()}
-      </div>
-    </main>
       <HelperBot currentRfp={selectedRfpId ? rfps.find(r => r.id === selectedRfpId) || null : null} />
+      
       <style>{`
         .scrollbar-hide::-webkit-scrollbar { display: none; }
         .scrollbar-hide { -ms-overflow-style: none; scrollbar-width: none; }

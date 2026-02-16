@@ -1,10 +1,7 @@
 import * as React from 'react';
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { 
-  Shield, Smartphone, ArrowRight, CheckCircle, 
-  AlertCircle, Loader2, Lock, Fingerprint, Info 
-} from 'lucide-react';
+import { CheckCircle, AlertCircle, Loader2, Lock, Fingerprint, Info, ArrowLeft } from 'lucide-react';
 import type { OnboardingStep } from '../../types';
 import logo from '../assets/TenderFlow.png';
 
@@ -13,13 +10,15 @@ interface OnboardingWizardProps {
   email: string;
   onComplete: () => void;
   onStepChange: (step: OnboardingStep) => void;
+  onBack: () => void;
 }
 
 export const OnboardingWizard: React.FC<OnboardingWizardProps> = ({ 
   step, 
   email, 
   onComplete, 
-  onStepChange 
+  onStepChange,
+  onBack 
 }) => {
   const [pin, setPin] = useState('');
   const [confirmPin, setConfirmPin] = useState('');
@@ -28,10 +27,6 @@ export const OnboardingWizard: React.FC<OnboardingWizardProps> = ({
   const [totpCode, setTotpCode] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-
-  const pinRef = useRef<HTMLInputElement>(null);
-  const confirmRef = useRef<HTMLInputElement>(null);
-  const totpRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (step === 'TWO_FA_BIND' && !qrCodeUrl) {
@@ -99,7 +94,7 @@ export const OnboardingWizard: React.FC<OnboardingWizardProps> = ({
   return (
     <div className="min-h-screen w-full bg-slate-950 flex flex-col md:flex-row overflow-hidden font-sans relative">
       
-      {/* LEFT SIDE: PROJECT IDEA & PROGRESS */}
+      {/* LEFT SIDE: VISUALS */}
       <div className="hidden md:flex md:w-1/2 bg-gradient-to-br from-blue-900/20 via-slate-950 to-slate-950 p-16 flex-col justify-between border-r border-slate-800/50 relative">
         <div className="absolute top-0 left-0 w-full h-full opacity-10 pointer-events-none bg-[url('https://www.transparenttextures.com/patterns/carbon-fibre.png')]"></div>
         
@@ -157,7 +152,16 @@ export const OnboardingWizard: React.FC<OnboardingWizardProps> = ({
 
       {/* RIGHT SIDE: INTERACTIVE SETUP */}
       <div className="w-full md:w-1/2 flex items-center justify-center p-8 bg-slate-950 relative">
-        <div className="w-full max-w-md">
+        
+        {/* --- FIXED: BACK BUTTON MOVED HERE AND GIVEN Z-INDEX 50 --- */}
+        <button 
+          onClick={onBack} 
+          className="absolute top-8 left-8 flex items-center gap-2 text-slate-500 hover:text-white transition-colors z-50 cursor-pointer"
+        >
+          <ArrowLeft className="w-4 h-4" /> <span className="text-xs font-bold uppercase tracking-widest">Back to Login</span>
+        </button>
+
+        <div className="w-full max-w-md relative z-10">
           <AnimatePresence mode="wait">
             {step === 'PIN_SETUP' && (
               <motion.div 
@@ -173,34 +177,53 @@ export const OnboardingWizard: React.FC<OnboardingWizardProps> = ({
                 <div className="space-y-8">
                   <div className="space-y-4">
                     <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest block text-center">New PIN</span>
-                    <div className="flex justify-center gap-3" onClick={() => pinRef.current?.focus()}>
-                      {[...Array(6)].map((_, i) => (
-                        <div key={i} className={`w-12 h-14 rounded-2xl flex items-center justify-center text-xl font-bold border-2 transition-all duration-300 ${pin[i] ? 'bg-blue-600 border-blue-400 text-white shadow-[0_0_15px_rgba(37,99,235,0.4)]' : 'bg-slate-900 border-slate-800 text-slate-700'}`}>
-                          {pin[i] ? '•' : ''}
-                        </div>
-                      ))}
+                    <div className="relative h-14 w-full">
+                       {/* Visuals */}
+                       <div className="absolute inset-0 flex justify-center gap-3 pointer-events-none">
+                         {[...Array(6)].map((_, i) => (
+                           <div key={i} className={`w-12 h-14 rounded-2xl flex items-center justify-center text-xl font-bold border-2 transition-all duration-300 ${pin[i] ? 'bg-blue-600 border-blue-400 text-white shadow-[0_0_15px_rgba(37,99,235,0.4)]' : 'bg-slate-900 border-slate-800 text-slate-700'}`}>
+                             {pin[i] ? '•' : ''}
+                           </div>
+                         ))}
+                       </div>
+                       {/* --- FIXED: Z-INDEX 20 ADDED --- */}
+                       <input 
+                         type="tel" 
+                         maxLength={6} 
+                         value={pin} 
+                         onChange={(e) => setPin(e.target.value.replace(/\D/g, ''))} 
+                         className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-20"
+                         autoFocus
+                       />
                     </div>
                   </div>
 
                   <div className="space-y-4">
                     <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest block text-center">Confirm PIN</span>
-                    <div className="flex justify-center gap-3" onClick={() => confirmRef.current?.focus()}>
-                      {[...Array(6)].map((_, i) => (
-                        <div key={i} className={`w-12 h-14 rounded-2xl flex items-center justify-center text-xl font-bold border-2 transition-all duration-300 ${confirmPin[i] ? (pin === confirmPin ? 'bg-emerald-600 border-emerald-400' : 'bg-red-900/50 border-red-500') + ' text-white shadow-lg' : 'bg-slate-900 border-slate-800 text-slate-700'}`}>
-                          {confirmPin[i] ? '•' : ''}
-                        </div>
-                      ))}
+                    <div className="relative h-14 w-full">
+                       <div className="absolute inset-0 flex justify-center gap-3 pointer-events-none">
+                         {[...Array(6)].map((_, i) => (
+                           <div key={i} className={`w-12 h-14 rounded-2xl flex items-center justify-center text-xl font-bold border-2 transition-all duration-300 ${confirmPin[i] ? (pin === confirmPin ? 'bg-emerald-600 border-emerald-400' : 'bg-red-900/50 border-red-500') + ' text-white shadow-lg' : 'bg-slate-900 border-slate-800 text-slate-700'}`}>
+                             {confirmPin[i] ? '•' : ''}
+                           </div>
+                         ))}
+                       </div>
+                       {/* --- FIXED: Z-INDEX 20 ADDED --- */}
+                       <input 
+                         type="tel" 
+                         maxLength={6} 
+                         value={confirmPin} 
+                         onChange={(e) => setConfirmPin(e.target.value.replace(/\D/g, ''))} 
+                         className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-20"
+                       />
                     </div>
                   </div>
                 </div>
 
-                <input ref={pinRef} type="password" maxLength={6} value={pin} onChange={(e) => setPin(e.target.value.replace(/\D/g, ''))} className="absolute opacity-0 pointer-events-none" />
-                <input ref={confirmRef} type="password" maxLength={6} value={confirmPin} onChange={(e) => setConfirmPin(e.target.value.replace(/\D/g, ''))} className="absolute opacity-0 pointer-events-none" />
-
                 <button 
                   onClick={handlePinSubmit} 
                   disabled={isLoading || pin.length !== 6 || pin !== confirmPin}
-                  className="w-full bg-blue-600 hover:bg-blue-500 disabled:opacity-30 text-white font-bold py-4 rounded-2xl shadow-xl transition-all active:scale-95"
+                  className="w-full bg-blue-600 hover:bg-blue-500 disabled:opacity-30 text-white font-bold py-4 rounded-2xl shadow-xl transition-all active:scale-95 relative z-30"
                 >
                   {isLoading ? <Loader2 className="animate-spin mx-auto" /> : "Save Master PIN"}
                 </button>
@@ -227,21 +250,30 @@ export const OnboardingWizard: React.FC<OnboardingWizardProps> = ({
 
                 <div className="space-y-4">
                   <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest block text-center">Enter 6-Digit App Code</span>
-                  <div className="flex justify-center gap-2" onClick={() => totpRef.current?.focus()}>
-                    {[...Array(6)].map((_, i) => (
-                      <div key={i} className={`w-12 h-14 rounded-xl flex items-center justify-center text-2xl font-bold border-2 transition-all ${totpCode[i] ? 'bg-emerald-600 border-emerald-400 text-white' : 'bg-slate-900 border-slate-800 text-slate-800'}`}>
-                        {totpCode[i] || '0'}
-                      </div>
-                    ))}
+                  <div className="relative h-14 w-full">
+                     <div className="absolute inset-0 flex justify-center gap-2 pointer-events-none">
+                       {[...Array(6)].map((_, i) => (
+                         <div key={i} className={`w-12 h-14 rounded-xl flex items-center justify-center text-2xl font-bold border-2 transition-all ${totpCode[i] ? 'bg-emerald-600 border-emerald-400 text-white' : 'bg-slate-900 border-slate-800 text-slate-800'}`}>
+                           {totpCode[i] || '0'}
+                         </div>
+                       ))}
+                     </div>
+                     {/* --- FIXED: Z-INDEX 20 ADDED --- */}
+                     <input 
+                       type="tel" 
+                       maxLength={6} 
+                       value={totpCode} 
+                       onChange={(e) => setTotpCode(e.target.value.replace(/\D/g, ''))} 
+                       className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-20"
+                       autoFocus
+                     />
                   </div>
                 </div>
-
-                <input ref={totpRef} type="text" maxLength={6} value={totpCode} onChange={(e) => setTotpCode(e.target.value.replace(/\D/g, ''))} className="absolute opacity-0 pointer-events-none" />
 
                 <button 
                   onClick={handle2FAVerify} 
                   disabled={isLoading || totpCode.length !== 6}
-                  className="w-full bg-emerald-600 hover:bg-emerald-500 disabled:opacity-30 text-white font-bold py-4 rounded-2xl flex items-center justify-center gap-3 transition-all"
+                  className="w-full bg-emerald-600 hover:bg-emerald-500 disabled:opacity-30 text-white font-bold py-4 rounded-2xl flex items-center justify-center gap-3 transition-all relative z-30"
                 >
                   {isLoading ? <Loader2 className="animate-spin" /> : <>Verify & Finish <CheckCircle className="w-5 h-5" /></>}
                 </button>
@@ -257,7 +289,7 @@ export const OnboardingWizard: React.FC<OnboardingWizardProps> = ({
         </div>
       </div>
 
-      {/* FOOTER - SYSTEM CREDITS */}
+      {/* FOOTER */}
       <footer className="absolute bottom-6 w-full flex justify-center items-center pointer-events-none">
         <div className="bg-slate-900/40 backdrop-blur-md border border-white/5 px-6 py-2 rounded-full shadow-2xl">
           <p className="text-[10px] md:text-xs font-medium text-slate-500 tracking-[0.2em] uppercase">

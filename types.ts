@@ -284,4 +284,5 @@ export type View =
   | 'discovery'
   | 'advanced_search'
   | 'vault'
+  | 'final_recommendation'
   | 'analysis';

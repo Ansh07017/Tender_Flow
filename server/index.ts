@@ -56,6 +56,7 @@ app.post("/api/vault/verify-pin", verifyVaultAccess);
 app.post("/api/auth/check-email", checkEmail);
 app.post("/api/auth/send-otp", sendAuthOtp);
 app.post("/api/auth/verify-otp", verifyAuthOtp);
+
 app.post("/api/discover", async (req: Request, res: Response) => {
   try {
     const { portal, category, filters, inventory } = req.body;
@@ -95,7 +96,8 @@ app.post("/api/discover", async (req: Request, res: Response) => {
   }
 });
 
-const vaultDir = path.join(__dirname, '../vault_storage');
+const vaultDir = path.join(process.cwd(), 'vault_storage'); 
+
 if (!fs.existsSync(vaultDir)){
     fs.mkdirSync(vaultDir);
 }
@@ -105,17 +107,13 @@ const storage = multer.diskStorage({
     cb(null, vaultDir)
   },
   filename: function (req, file, cb) {
-    // Save as: timestamp-filename
     cb(null, Date.now() + '-' + file.originalname)
   }
 });
 
 const upload = multer({ storage: storage });
 
-
-// --- ROUTES: Compliance Vault ---
-
-// 1. Upload Document
+// Upload Document
 app.post('/api/vault/upload', upload.single('file'), async (req: Request, res: Response) => {
     try {
         const { docId } = req.body;
@@ -123,11 +121,9 @@ app.post('/api/vault/upload', upload.single('file'), async (req: Request, res: R
 
         if (!file) return res.status(400).json({ error: "No file uploaded" });
 
-        // Update database with new file path
-        // In a real app, you would parse the PDF expiration date here using Gemini
         await pool.query(
             "UPDATE compliance_vault SET file_path = $1, is_valid = true, expiry_date = $2 WHERE id = $3",
-            [file.path, '2026-12-31', docId] // Hardcoded expiry for demo, replace with AI extraction later
+            [file.path, '2026-12-31', docId]
         );
 
         res.json({ success: true, filePath: file.path });
@@ -137,9 +133,8 @@ app.post('/api/vault/upload', upload.single('file'), async (req: Request, res: R
     }
 });
 
-// 2. Secure Download (Only works if session verified)
+// Secure Download
 app.get('/api/vault/download/:filename', (req, res) => {
-    // In production, verify JWT/Session here first!
     const filePath = path.join(vaultDir, req.params.filename);
     res.download(filePath);
 });

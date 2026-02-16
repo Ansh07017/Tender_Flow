@@ -15,7 +15,7 @@ export const AdvancedSearchScreen: React.FC<AdvancedSearchProps> = ({ onBack, on
   const [formData, setFormData] = useState({
     bidNo: '',
     ministry: '',
-    organization: 'Hindustan Aeronautics Limited', // Auto-fill for your B2B goal
+    organization: '', 
     state: '',
     city: '',
     boqTitle: '',
@@ -51,24 +51,31 @@ export const AdvancedSearchScreen: React.FC<AdvancedSearchProps> = ({ onBack, on
           </h3>
         </div>
         
-        <div className="flex-grow overflow-y-auto p-4 space-y-2 scrollbar-hide">
+        <div className="flex-grow overflow-y-auto p-4 space-y-3 scrollbar-hide">
           {tabs.map((tab) => (
             <button
               key={tab.id}
               onClick={() => setActiveTab(tab.id as TabType)}
-              className={`w-full text-left p-4 rounded-2xl border transition-all group relative overflow-hidden ${
-                activeTab === tab.id 
-                  ? 'bg-gold-500 border-gold-500 text-slate-950 shadow-[0_0_20px_rgba(212,175,55,0.4)]' 
-                  : 'bg-slate-950/50 border-slate-800 text-slate-400 hover:border-slate-600 hover:text-white'
-              }`}
+               className={`text-[10px] py-3 px-3 rounded-xl border font-black uppercase tracking-widest transition-all ${
+                    activeTab === tab.id 
+                      ? 'bg-gold-500 border-gold-500 shadow-[0_0_15px_rgba(212,175,55,0.3)]' 
+                      : 'bg-slate-950 border-slate-700 text-slate-300 hover:border-gold-500/50 hover:text-white'
+                  }`}
             >
-              <div className="flex items-center gap-3 relative z-10">
-                <tab.icon className={`w-5 h-5 ${activeTab === tab.id ? 'text-slate-950' : 'text-gold-500'}`} />
-                <div>
-                  <div className="text-[10px] font-black uppercase tracking-widest">{tab.label}</div>
-                  <div className={`text-[10px] mt-1 ${activeTab === tab.id ? 'text-slate-800 font-bold' : 'text-slate-600'}`}>
-                    {tab.desc}
-                  </div>
+              {/* Icon Container */}
+              <div className={`shrink-0 w-8 h-8 p-1.5  flex items-center justify-center rounded-lg transition-colors ${
+                activeTab === tab.id ? 'bg-gold-500 border-gold-500 shadow-[0_0_15px_rgba(212,175,55,0.3)]' 
+                      : 'bg-slate-950 border-slate-700 text-slate-300 hover:border-gold-500/50 hover:text-white'
+              }`}>
+                <tab.icon className={`w-4 h-4 ${activeTab === tab.id ? 'bg-gold-500 border-gold-500 shadow-[0_0_15px_rgba(212,175,55,0.3)]' 
+                      : 'bg-slate-950 border-slate-700 text-slate-300 hover:border-gold-500/50 hover:text-white'}`} />
+              </div>
+
+              <div className="flex-1 text-center">
+                <div className="text-[11px] font-black uppercase tracking-widest leading-tight">{tab.label}</div>
+                <div className={`text-[9px] mt-1 line-clamp-1 ${activeTab === tab.id ? 'bg-gold-500 border-gold-500 shadow-[0_0_15px_rgba(212,175,55,0.3)]' 
+                      : 'bg-slate-950 border-slate-700 text-slate-300 hover:border-gold-500/50 hover:text-white'}`}>
+                  {tab.desc}
                 </div>
               </div>
             </button>
@@ -164,7 +171,7 @@ export const AdvancedSearchScreen: React.FC<AdvancedSearchProps> = ({ onBack, on
           <button 
             onClick={handleSearch}
             disabled={isScanning}
-            className="flex items-center gap-3 bg-gold-500 text-slate-950 px-8 py-4 rounded-xl font-black uppercase tracking-widest hover:scale-105 hover:shadow-[0_0_30px_rgba(212,175,55,0.4)] transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+            className="flex items-center gap-3 bg-white text-slate-950 px-8 py-4 rounded-xl text-sm font-black uppercase tracking-widest transition-all shadow-[0_0_20px_rgba(212,175,55,0.3)] hover:scale-105 hover:bg-gold-500"
           >
             {isScanning ? (
               <>Scanning Portal...</>

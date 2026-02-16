@@ -1,5 +1,6 @@
-import React, { useState, useRef, useEffect } from 'react';
-import { Rfp, AgentName } from '../../types';
+import * as React from 'react';
+import { useState, useRef, useEffect } from 'react';
+import { Rfp} from '../../types';
 
 interface Message {
   sender: 'user' | 'bot';

@@ -1,19 +1,26 @@
 import * as React from 'react';
-import { useState} from 'react';
-import { ShieldCheck } from 'lucide-react';
+import { useState } from 'react';
+import { ShieldCheck, LogOut, KeyRound } from 'lucide-react';
 import { AppConfig, CompanyConfig, SigningAuthority } from '../../types';
 
 interface ConfigScreenProps {
   config: AppConfig;
   setConfig: React.Dispatch<React.SetStateAction<AppConfig>>;
   onOpenVault: () => void;
+  onLogout: () => void;      // <--- New Prop
+  onChangePin: () => void;   // <--- New Prop
 }
 
-export const ConfigScreen: React.FC<ConfigScreenProps> = ({ config, setConfig,onOpenVault }) => {
+export const ConfigScreen: React.FC<ConfigScreenProps> = ({ 
+  config, 
+  setConfig, 
+  onOpenVault,
+  onLogout,
+  onChangePin
+}) => {
   const [companyDetails, setCompanyDetails] = useState<CompanyConfig>(config.companyDetails);
   const [isAddingAuthority, setIsAddingAuthority] = useState(false);
   const [newAuth, setNewAuth] = useState({ name: '', designation: '', din: '' });
-
 
   const handleCompanyChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target;
@@ -35,34 +42,36 @@ export const ConfigScreen: React.FC<ConfigScreenProps> = ({ config, setConfig,on
 
   return (
     <div className="h-full flex flex-col space-y-6 overflow-hidden text-slate-200">
-      {/* 1. Header Section */}      
-
-        <div className="h-[20%] bg-slate-900/40 border border-slate-800 rounded-3xl p-6 flex items-center justify-between backdrop-blur-xl">
-          <div className="space-y-1">
-            <h1 className="text-3xl font-black italic tracking-tighter text-transparent bg-clip-text bg-gradient-to-r from-white to-gold-500 uppercase">
-              Company <span className="text-gold-500">Profile</span>
-            </h1>
-            <p className="text-[10px] text-slate-500 font-bold leading-relaxed max-w-xs uppercase tracking-widest">
-              Master Identity & Authorization Control
-            </p>
-          </div>
-        <button 
+      
+      {/* 1. HEADER SECTION */}      
+      <div className="shrink-0 h-[15%] min-h-[100px] bg-slate-900/40 border border-slate-800 rounded-3xl p-6 flex items-center justify-between backdrop-blur-xl">
+        <div className="space-y-1">
+          <h1 className="text-3xl font-black italic tracking-tighter text-transparent bg-clip-text bg-gradient-to-r from-white to-gold-500 uppercase">
+            Company <span className="text-gold-500">Profile</span>
+          </h1>
+          <p className="text-[10px] text-slate-500 font-bold leading-relaxed max-w-xs uppercase tracking-widest">
+            Master Identity & Authorization Control
+          </p>
+        </div>
+        
+        <div className="flex gap-3">
+          <button 
             onClick={onOpenVault}
-            className="flex items-center gap-2 bg-slate-950 text-blue-400 border border-blue-900/30 px-6 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all hover:bg-blue-600 hover:text-white shadow-[0_0_20px_rgba(37,99,235,0.2)]"
+            className="flex items-center gap-2 bg-slate-950 text-blue-400 border border-blue-900/30 px-6 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all hover:bg-blue-600 hover:text-white shadow-[0_0_20px_rgba(37,99,235,0.2)]"
           >
             <ShieldCheck className="w-4 h-4" />
             Manage Vault
           </button>
-        <button 
-          onClick={handleSave}
-          className="bg-white text-slate-950 px-6 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all shadow-[0_0_20px_rgba(212,175,55,0.3)]"
-        >
-          Push Changes to Cloud
-        </button>
-        
+          <button 
+            onClick={handleSave}
+            className="bg-white text-slate-950 px-6 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all shadow-[0_0_20px_rgba(212,175,55,0.3)] hover:scale-105"
+          >
+            Push Changes
+          </button>
+        </div>
       </div>
 
-      {/* 2. Main Config Grid - No Scrolling */}
+      {/* 2. MAIN CONFIG GRID (Scrollable if needed, but fits mostly) */}
       <div className="grid grid-cols-12 gap-6 flex-grow overflow-hidden">
         
         {/* LEFT: COMPANY IDENTITY */}
@@ -82,10 +91,11 @@ export const ConfigScreen: React.FC<ConfigScreenProps> = ({ config, setConfig,on
                 value={companyDetails.companyAddress}
                 onChange={handleCompanyChange}
                 rows={4}
-                className="bg-slate-950 border border-slate-800 rounded-2xl px-4 py-3 text-sm focus:border-gold-500 outline-none transition-all resize-none"
+                className="bg-slate-950 border border-slate-800 rounded-2xl px-4 py-3 text-sm focus:border-gold-500 outline-none transition-all resize-none placeholder:text-slate-700 text-white"
               />
             </div>
           </div>
+          
           <div className="mt-4 p-4 bg-blue-500/5 rounded-2xl border border-blue-500/10">
             <p className="text-[9px] text-blue-400 font-bold uppercase">System Note</p>
             <p className="text-[10px] text-slate-500 leading-tight mt-1">This data is injected into auto-generated tender documents and technical compliance certificates.</p>
@@ -98,9 +108,9 @@ export const ConfigScreen: React.FC<ConfigScreenProps> = ({ config, setConfig,on
             <h3 className="text-[10px] font-black uppercase tracking-[0.3em] text-gold-500/60">Authorized Signatories</h3>
             <button 
               onClick={() => setIsAddingAuthority(true)}
-              className="text-[9px] font-black px-3 py-1 bg-slate-800 rounded border border-slate-700 hover:text-gold-500 transition-colors"
+              className="text-[9px] font-black px-3 py-1 bg-slate-800 rounded border border-slate-700 hover:text-gold-500 transition-colors uppercase tracking-widest"
             >
-              + ADD NEW
+              + Add New
             </button>
           </div>
 
@@ -131,8 +141,8 @@ export const ConfigScreen: React.FC<ConfigScreenProps> = ({ config, setConfig,on
                   <input placeholder="DIN" className="auth-input" value={newAuth.din} onChange={e => setNewAuth({...newAuth, din: e.target.value})} />
                 </div>
                 <div className="flex justify-end gap-2">
-                  <button onClick={() => setIsAddingAuthority(false)} className="text-[9px] font-bold px-3 py-1 uppercase">Cancel</button>
-                  <button onClick={addAuthority} className="bg-gold-500 text-slate-350 px-6 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-white transition-all shadow-[0_0_20px_rgba(212,175,55,0.3)]">Save Authority</button>
+                  <button onClick={() => setIsAddingAuthority(false)} className="text-[9px] font-bold px-3 py-1 uppercase text-slate-500 hover:text-white">Cancel</button>
+                  <button onClick={addAuthority} className="bg-gold-500 text-slate-950 px-6 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-white transition-all shadow-[0_0_20px_rgba(212,175,55,0.3)]">Save Authority</button>
                 </div>
               </div>
             )}
@@ -140,31 +150,51 @@ export const ConfigScreen: React.FC<ConfigScreenProps> = ({ config, setConfig,on
         </div>
       </div>
 
-      <style>{`.auth-input { @apply bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs outline-none transition-all font-medium; }
+      {/* 3. SYSTEM FOOTER (LOGOUT & SECURITY) */}
+      <div className="shrink-0 bg-slate-900/40 border border-slate-800 rounded-3xl p-4 flex items-center justify-between backdrop-blur-xl">
+        <p className="text-[10px] text-slate-600 font-medium uppercase tracking-widest pl-2">
+          System Version 2.4.0 • Authorized Access Only
+        </p>
+        
+        <div className="flex gap-3">
+          <button 
+            onClick={onChangePin}
+            className="flex items-center gap-2 px-5 py-2.5 bg-slate-950 border border-slate-800 text-slate-300 hover:text-white hover:border-slate-600 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all"
+          >
+            <KeyRound className="w-3 h-3" /> Change Master PIN
+          </button>
+          
+          <button 
+            onClick={onLogout}
+            className="flex items-center gap-2 px-5 py-2.5 bg-red-500/10 border border-red-500/20 text-red-400 hover:bg-red-500 hover:text-white rounded-xl text-[10px] font-black uppercase tracking-widest transition-all"
+          >
+            <LogOut className="w-3 h-3" /> End Session
+          </button>
+        </div>
+      </div>
+
+      <style>{`.auth-input { @apply bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs outline-none transition-all font-medium text-white; }
       .auth-input::placeholder {
-    color: #000000;
-    opacity: 1;    
-  }
-
-  .auth-input:focus {
-    @apply border border-slate-800 rounded-xl px-3 py-2 text-xs outline-none transition-all font-medium;
-    color: #000000;
-  }
-
-  .scrollbar-hide::-webkit-scrollbar { display: none; }`}</style>
+        color: #475569;
+        opacity: 1;    
+      }
+      .auth-input:focus {
+        @apply border-gold-500;
+      }
+      .scrollbar-hide::-webkit-scrollbar { display: none; }`}</style>
     </div>
   );
 };
 
 const ConfigInput = ({ label, name, value, onChange }: any) => (
   <div className="flex flex-col gap-1">
-    <label className="text-[9px] font-black uppercase text-slate-900 ml-2 italic tracking-widest">{label}</label>
+    <label className="text-[9px] font-black uppercase text-slate-500 ml-2 italic tracking-widest">{label}</label>
     <input 
       type="text" 
       name={name}
       value={value}
       onChange={onChange}
-      className="bg-slate-950 border border-slate-800 rounded-2xl px-4 py-2.5 text-sm focus:border-gold-500 outline-none transition-all placeholder:text-slate-600"
+      className="bg-slate-950 border border-slate-800 rounded-2xl px-4 py-2.5 text-sm focus:border-gold-500 outline-none transition-all placeholder:text-slate-700 text-white"
     />
   </div>
 );

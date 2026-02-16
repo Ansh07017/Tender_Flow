@@ -1,4 +1,5 @@
-import React, { useState, useMemo } from 'react';
+import * as React from 'react';
+import { useState, useMemo } from 'react';
 import { Rfp } from '../../types';
 import jsPDF from 'jspdf';
 import 'jspdf-autotable';
@@ -177,6 +178,12 @@ export const AnalysisScreen: React.FC<AnalysisScreenProps> = ({ rfp, onBack, onC
            </button>
            <button onClick={handleDownloadPDF} className="bg-white text-slate-950 px-6 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-gold-500 transition-all shadow-lg">
              Submit & Download PDF
+           </button>
+           <button 
+             onClick={onProceed} 
+             className="bg-white text-slate-950 px-6 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-gold-500 transition-all shadow-lg flex items-center gap-2"
+           >
+             Finalize & Export <ArrowRight className="w-4 h-4" />
            </button>
         </div>
       </div>
