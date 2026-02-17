@@ -3,14 +3,16 @@ import { useState, useMemo } from 'react';
 import { Rfp } from '../../types';
 import jsPDF from 'jspdf';
 import 'jspdf-autotable';
+import { ArrowRight } from 'lucide-react';
 
 interface AnalysisScreenProps {
   rfp: Rfp;
   onBack: () => void;
   onCancel: () => void;
+  onProceed: () => void;
 }
 
-export const AnalysisScreen: React.FC<AnalysisScreenProps> = ({ rfp, onBack, onCancel }) => {
+export const AnalysisScreen: React.FC<AnalysisScreenProps> = ({ rfp, onBack, onCancel,onProceed }) => {
   const technicalResults = rfp.agentOutputs?.technicalAnalysis?.itemAnalyses || [];
   const parsedMetadata = rfp.agentOutputs?.parsedData?.metadata || {};
 

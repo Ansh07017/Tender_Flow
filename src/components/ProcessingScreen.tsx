@@ -1,4 +1,5 @@
-import React, { useEffect, useState } from 'react';
+import * as React from 'react';
+import { useState, useEffect } from 'react';
 import { Rfp, LogEntry } from '../../types';
 
 interface ProcessingScreenProps {
@@ -184,7 +185,7 @@ export const ProcessingScreen: React.FC<ProcessingScreenProps> = ({
               </button>
               <button 
                 onClick={() => { setIsSnapshotOpen(false); onViewResults(); }}
-                className="px-10 py-3 bg-gold-500 text-slate-950 text-[10px] font-black uppercase tracking-widest rounded-xl hover:bg-white transition-all shadow-lg shadow-gold-500/30"
+                className="bg-white text-slate-950 px-6 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-gold-500 transition-all shadow-lg flex items-center gap-2"
               >
                 Proceed to Analysis →
               </button>
