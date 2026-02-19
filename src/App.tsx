@@ -429,7 +429,8 @@ const App: React.FC = () => {
       case 'analysis':
         return selectedRfp ? (
           <AnalysisScreen 
-            rfp={selectedRfp} 
+            rfp={selectedRfp}
+            config={config} 
             onBack={() => setCurrentView('processing')} 
             onCancel={() => {
               setSelectedRfpId(null);

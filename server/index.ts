@@ -15,7 +15,7 @@ import { login, setupPin, setup2FA, verify2FA, verifyVaultAccess, checkEmail, se
 import multer from 'multer';
 import path from 'path';
 import fs from 'fs';
-
+import { extractATCSlice, parseATCWithGrok } from './grok';
 // --- CONFIGURATION & MIDDLEWARE ---
 process.on('uncaughtException', (err) => {
   console.error('🔥 CRITICAL UNCAUGHT EXCEPTION:', err);
@@ -229,7 +229,25 @@ app.post("/api/parse-rfp", async (req: Request, res: Response) => {
       });
     }
 
-    const parsedData = await parseRFP(content);
+    // --- NEW: MULTI-AGENT EXECUTION ---
+    // 1. Isolate the bottom of the PDF for Grok
+    const atcSlice = extractATCSlice(content);
+
+    // 2. Fire both LLMs simultaneously (Zero extra latency)
+    console.log("⚡ Firing Gemini & Grok in Parallel...");
+    const [parsedData, atcData] = await Promise.all([
+      parseRFP(content),                 // Gemini extracts BOQ & Metadata
+      parseATCWithGrok(atcSlice)         // Grok extracts ATCs & Docs
+    ]);
+
+    // 3. Merge Grok's findings into the main data object
+    parsedData.buyer_added_terms = atcData.atc_summary || [];
+    parsedData.mandatoryDocuments = Array.from(new Set([
+      ...(parsedData.mandatoryDocuments || []),
+      ...(atcData.required_documents || [])
+    ]));
+    // ----------------------------------
+
     const products = Array.isArray(parsedData?.products) ? parsedData.products : [];
 
     if (products.length === 0) {
@@ -247,6 +265,7 @@ app.post("/api/parse-rfp", async (req: Request, res: Response) => {
       });
     }
 
+    // Pass the merged data to your logic engines
     const technicalResult = runTechnicalAgent(products, productInventory);
     const hasLineItems = technicalResult?.itemAnalyses && technicalResult.itemAnalyses.length > 0;
 
@@ -281,7 +300,6 @@ app.post("/api/parse-rfp", async (req: Request, res: Response) => {
     });
   }
 });
-
 /* ============================================================================
    DATABASE BOOTSTRAPPER (This fixes your persistence issues)
    - Checks if tables exist
