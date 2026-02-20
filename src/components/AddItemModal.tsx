@@ -1,5 +1,5 @@
-
-import React, { useState } from 'react';
+import * as React from 'react';
+import { useState} from 'react';
 import { SKU, TruckType } from '../../types';
 
 interface AddItemModalProps {

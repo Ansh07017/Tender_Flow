@@ -1,4 +1,4 @@
-import { SKU, RfpProductLineItem, LineItemTechnicalAnalysis } from '../../types';
+import { SKU, RfpProductLineItem} from '../../types';
 
 /* =====================================================
     CONFIG – Industrial Strategic Weights

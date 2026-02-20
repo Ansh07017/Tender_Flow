@@ -1,6 +1,6 @@
 import * as React from 'react';
 import { useState, useMemo, useEffect } from 'react';
-import { Rfp, AppConfig } from '../../types';
+import { Rfp, AppConfig,BlankDoc } from '../../types';
 import jsPDF from 'jspdf';
 import 'jspdf-autotable';
 import { 
@@ -14,15 +14,7 @@ interface AnalysisScreenProps {
   config?: AppConfig; 
   onBack: () => void;
   onCancel: () => void;
-  onProceed: () => void;
-}
-
-interface BlankDoc {
-  id: string;
-  name: string;
-  url: string;
-  status: 'DETECTED' | 'CONVERTING' | 'CONVERTED_TO_DOCX';
-  type: string;
+  onProceed: (data: any) => void;
 }
 
 export const AnalysisScreen: React.FC<AnalysisScreenProps> = ({ rfp, config, onBack, onCancel, onProceed }) => {
@@ -185,17 +177,41 @@ export const AnalysisScreen: React.FC<AnalysisScreenProps> = ({ rfp, config, onB
     setEditingItem(null);
   };
 
-  const handleConvertDoc = (docId: string) => {
+// HIGHLIGHT AND REPLACE THESE TWO FUNCTIONS COMPLETELY:
+  const handleConvertDoc = async (docId: string, url: string, name: string) => {
+    // 1. Set status to CONVERTING (UI shows spinner)
     setBlankDocs(prev => prev.map(d => d.id === docId ? { ...d, status: 'CONVERTING' } : d));
-    setTimeout(() => {
-      setBlankDocs(prev => prev.map(d => d.id === docId ? { ...d, status: 'CONVERTED_TO_DOCX' } : d));
-    }, 2000);
+
+    try {
+      // 2. Call our new Backend API
+      const res = await fetch('http://localhost:3001/api/convert-pdf', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ url, fileName: name })
+      });
+      
+      const data = await res.json();
+
+      // 3. Update status to CONVERTED and save the download link
+      if (data.success) {
+        setBlankDocs(prev => prev.map(d => 
+          d.id === docId ? { ...d, status: 'CONVERTED_TO_DOCX', docxUrl: data.docxUrl } : d
+        ));
+      } else {
+        alert("Conversion failed. Check backend console.");
+        setBlankDocs(prev => prev.map(d => d.id === docId ? { ...d, status: 'DETECTED' } : d));
+      }
+    } catch (err) {
+      alert("Network error during conversion.");
+      setBlankDocs(prev => prev.map(d => d.id === docId ? { ...d, status: 'DETECTED' } : d));
+    }
   };
 
   const handleConvertAll = () => {
     blankDocs.forEach((doc, index) => {
       if (doc.status === 'DETECTED') {
-        setTimeout(() => handleConvertDoc(doc.id), index * 600);
+        // Stagger API calls by 1.5 seconds to prevent rate-limiting the API
+        setTimeout(() => handleConvertDoc(doc.id, doc.url, doc.name), index * 1500);
       }
     });
   };
@@ -210,8 +226,8 @@ export const AnalysisScreen: React.FC<AnalysisScreenProps> = ({ rfp, config, onB
             <MapPin className="w-6 h-6 text-blue-500" />
           </div>
           <div>
-            <h3 className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Primary Consignee Location</h3>
-            <p className="text-lg font-bold text-white">{parsedData.consignee || parsedMetadata.officeName || "Multiple Locations"}</p>
+            <h3 className="text-[13px] font-black text-slate-500 uppercase tracking-widest">Primary Consignee Location</h3>
+            <p className="text-[15px] font-bold text-white">{parsedData.consignee || parsedMetadata.officeName || "Multiple Locations"}</p>
           </div>
         </div>
         <div className="text-right">
@@ -314,7 +330,10 @@ export const AnalysisScreen: React.FC<AnalysisScreenProps> = ({ rfp, config, onB
   );
 
   const renderCompliance = () => (
-    <div className="grid grid-cols-2 gap-6 items-start w-full">
+    <div className="flex flex-col gap-6 w-full">
+      
+      {/* 2. CHANGE: Nested grid just for the top two columns */}
+      <div className="grid grid-cols-2 gap-6 items-start w-full">
       {/* LEFT COLUMN */}
       <div className="space-y-6">
         <div className="bg-emerald-500/10 backdrop-blur-md border border-emerald-500/30 rounded-[2rem] p-6 shadow-xl">
@@ -352,7 +371,6 @@ export const AnalysisScreen: React.FC<AnalysisScreenProps> = ({ rfp, config, onB
              <div className={`flex justify-between items-center p-4 bg-slate-950/80 rounded-xl border ${liveCalculations.emd > 0 ? 'border-red-500/30' : 'border-slate-800/80'}`}>
                <div>
                  <span className="text-xs font-bold text-white block">EMD Payment Proof</span>
-                 <span className="text-[9px] text-slate-500">Not MSE - Exemption Not Applicable</span>
                </div>
                {liveCalculations.emd > 0 ? (
                  <span className="text-[9px] font-black uppercase px-3 py-1.5 rounded-lg bg-amber-500/10 text-amber-400">Action Required: Pay ₹{Math.round(liveCalculations.emd).toLocaleString()}</span>
@@ -362,25 +380,7 @@ export const AnalysisScreen: React.FC<AnalysisScreenProps> = ({ rfp, config, onB
              </div>
           </div>
         </div>
-
-        <div className="bg-slate-900/40 backdrop-blur-md border border-slate-800/80 rounded-[2rem] p-6 shadow-xl">
-          <h3 className="text-xs font-black text-slate-500 uppercase tracking-widest mb-4 flex items-center gap-2">
-            <BrainCircuit className="w-4 h-4 text-purple-500" /> AI Summarized T&C (ATC)
-          </h3>
-          <ul className="space-y-4">
-            {buyerTerms.length > 0 ? (
-              buyerTerms.map((term: string, idx: number) => (
-                <li key={idx} className="flex gap-3 text-xs text-slate-300 items-start">
-                  <span className="text-purple-500 font-black mt-0.5 text-sm">•</span> 
-                  <span className="leading-relaxed">{term}</span>
-                </li>
-              ))
-            ) : (
-              <li className="text-xs text-slate-500 italic">No specific Buyer Added Terms detected by AI.</li>
-            )}
-          </ul>
         </div>
-      </div>
 
       {/* RIGHT COLUMN: DOCUMENT EXTRACTION & CONVERSION */}
       <div className="bg-slate-900/40 backdrop-blur-md border border-slate-800/80 rounded-[2rem] flex flex-col relative overflow-hidden shadow-xl">
@@ -426,9 +426,10 @@ export const AnalysisScreen: React.FC<AnalysisScreenProps> = ({ rfp, config, onB
                      </button>
                      
                      {/* Convert Button Uses Export PDF UI Style (Active/Clicked) */}
+                     {/* Convert Button Uses Export PDF UI Style (Active/Clicked) */}
                      {doc.status === 'DETECTED' && (
                         <button 
-                           onClick={() => handleConvertDoc(doc.id)}
+                           onClick={() => handleConvertDoc(doc.id, doc.url, doc.name)} // <--- UPDATED THIS LINE
                            className="flex-1 py-3 bg-white text-slate-950 hover:bg-gold-500 hover:text-white text-[9px] font-black uppercase tracking-widest rounded-xl transition-all shadow-[0_5px_20px_rgba(255,255,255,0.2)] flex items-center justify-center gap-2"
                         >
                            <FileCog className="w-4 h-4" /> Convert
@@ -442,7 +443,10 @@ export const AnalysisScreen: React.FC<AnalysisScreenProps> = ({ rfp, config, onB
                      )}
 
                      {doc.status === 'CONVERTED_TO_DOCX' && (
-                        <button className="flex-1 py-3 bg-emerald-500 text-white hover:bg-emerald-400 text-[9px] font-black uppercase tracking-widest rounded-xl transition-all shadow-[0_5px_20px_rgba(16,185,129,0.3)] flex items-center justify-center gap-2">
+                        <button 
+                           onClick={() => { if(doc.docxUrl) window.open(doc.docxUrl, '_blank'); }}
+                           className="flex-1 py-3 bg-emerald-500 text-white hover:bg-emerald-400 text-[9px] font-black uppercase tracking-widest rounded-xl transition-all shadow-[0_5px_20px_rgba(16,185,129,0.3)] flex items-center justify-center gap-2"
+                        >
                            <Download className="w-4 h-4" /> Download
                         </button>
                      )}
@@ -451,9 +455,32 @@ export const AnalysisScreen: React.FC<AnalysisScreenProps> = ({ rfp, config, onB
             ))}
          </div>
       </div>
-
+      </div>
+    <div className="bg-slate-900/40 backdrop-blur-md border border-slate-800/80 rounded-[2rem] p-6 shadow-xl w-full">
+          <h3 className="text-xs font-black text-slate-500 uppercase tracking-widest mb-6 flex items-center gap-2">
+            <BrainCircuit className="w-4 h-4 text-purple-500" /> Executive AI Summary & ATC Rules
+          </h3>
+          
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            {buyerTerms.length > 0 ? (
+              buyerTerms.map((term: string, idx: number) => (
+                <div key={idx} className="flex gap-4 p-4 bg-slate-950/50 rounded-xl border border-slate-800/50">
+                  <div className="w-6 h-6 rounded-full bg-purple-500/10 text-purple-400 flex items-center justify-center text-xs font-bold shrink-0">
+                    {idx + 1}
+                  </div>
+                  <span className="text-sm text-slate-300 leading-relaxed font-medium">{term}</span>
+                </div>
+              ))
+            ) : (
+              <div className="text-sm text-slate-500 italic p-4">No specific Buyer Added Terms detected by AI.</div>
+            )}
+          </div>
+      </div>
+      
     </div>
   );
+
+  
 
   return (
     <div className="absolute inset-0 bg-slate-950 text-slate-200 overflow-hidden font-sans">

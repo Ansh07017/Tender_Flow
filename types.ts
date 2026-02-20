@@ -35,6 +35,14 @@ export interface ExtractedDocument {
   name: string;
   url: string;
 }
+export interface BlankDoc {
+  id: string;
+  name: string;
+  url: string;
+  status: 'DETECTED' | 'CONVERTING' | 'CONVERTED_TO_DOCX';
+  type: string;
+  docxUrl?: string;
+}
 
 export interface SKU {
   skuId: string;

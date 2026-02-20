@@ -67,6 +67,7 @@ const App: React.FC = () => {
   const [discoveryResults, setDiscoveryResults] = useState<Tender[]>([]);
   const [isDiscoveryScanning, setIsDiscoveryScanning] = useState(false);
   const [hasSearched, setHasSearched] = useState(false);
+  const [analysisContext, setAnalysisContext] = useState<any>(null);
   
   // --- STATE: VAULT LOCK ---
   const [isVaultUnlocked, setIsVaultUnlocked] = useState(false);
@@ -222,7 +223,7 @@ const App: React.FC = () => {
         status: 'Complete',
         activeAgent: 'FINALIZING_AGENT',
         agentOutputs: {
-          parsedData: backendResult.parsedData, 
+          parsedData: { ...backendResult.parsedData, riskAnalysis: backendResult.riskAnalysis },
           technicalAnalysis: backendResult.technicalAnalysis, 
           pricing: backendResult.pricing 
         },
@@ -420,15 +421,18 @@ const App: React.FC = () => {
           />
         );
 
-      case 'final_recommendation': 
+     case 'final_recommendation': 
         return selectedRfp ? (
           <FinalRecommendation 
             rfp={selectedRfp}
+            // ADD THIS NEW PROP:
+            analysisContext={analysisContext} 
             onBack={() => setCurrentView('analysis')}
             onCancel={() => {
               setSelectedRfpId(null);
               setCurrentView('frontpage');
               setProcessingStartTime(null);
+              setAnalysisContext(null);
             }}
           />
         ) : null;
@@ -488,6 +492,7 @@ const App: React.FC = () => {
       <OnboardingWizard 
         step={onboardingStep} 
         email={user?.email || ''}
+        isSetupComplete={user?.is_setup_complete}
         onComplete={() => {
           // FIX: Force App to remember you finished the setup!
           setOnboardingStep('NONE');

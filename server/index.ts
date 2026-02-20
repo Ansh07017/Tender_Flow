@@ -16,6 +16,8 @@ import multer from 'multer';
 import path from 'path';
 import fs from 'fs';
 import { extractATCSlice, parseATCWithGrok } from './grok';
+import ConvertAPI from 'convertapi';
+const convertapi = new ConvertAPI(process.env.CONVERT_API_SECRET as string);
 
 // --- CONFIGURATION & MIDDLEWARE ---
 process.on('uncaughtException', (err) => {
@@ -103,6 +105,63 @@ app.post("/api/vault/verify-pin", verifyVaultAccess);
 app.post("/api/auth/check-email", checkEmail);
 app.post("/api/auth/send-otp", sendAuthOtp);
 app.post("/api/auth/verify-otp", verifyAuthOtp);
+
+// ============================================================================
+//  REAL PDF TO DOCX CONVERSION ENGINE
+// ============================================================================
+// ============================================================================
+//  REAL PDF TO DOCX CONVERSION ENGINE (PROXY DOWNLOADER)
+// ============================================================================
+app.post("/api/convert-pdf", async (req: Request, res: Response) => {
+  let tempFilePath = "";
+
+  try {
+    const { url, fileName } = req.body;
+    console.log(`[CONVERT_ENGINE] Initiating proxy download for: ${fileName}`);
+
+    // 1. Download the file locally using Chrome headers to bypass GeM security
+    const pdfResponse = await axios.get(url, {
+      responseType: 'arraybuffer',
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36',
+        'Accept': 'application/pdf,application/json,text/plain,*/*',
+        'Referer': 'https://bidplus.gem.gov.in/'
+      }
+    });
+
+    // 2. Save it locally to the existing vault_storage folder
+    tempFilePath = path.join(vaultDir, `temp_convert_${Date.now()}.pdf`);
+    fs.writeFileSync(tempFilePath, pdfResponse.data);
+    console.log(`[CONVERT_ENGINE] Temporarily saved to: ${tempFilePath}`);
+
+    // 3. Point ConvertAPI to the LOCAL file path instead of the GeM URL
+    console.log(`[CONVERT_ENGINE] Uploading local file to ConvertAPI...`);
+    const result = await convertapi.convert('docx', {
+        File: tempFilePath,
+    }, 'pdf');
+
+    // Get the final download link from ConvertAPI
+    const docxUrl = result.file.url;
+    console.log(`[CONVERT_ENGINE] ✅ Success: ${docxUrl}`);
+
+    // 4. Immediately delete the local PDF from our storage
+    fs.unlinkSync(tempFilePath);
+    console.log(`[CONVERT_ENGINE] 🧹 Cleaned up temporary file.`);
+
+    res.json({ success: true, docxUrl });
+
+  } catch (err: any) {
+    console.error("🔥 [CONVERT_ENGINE] Failed:", err.message);
+    
+    // Failsafe: Ensure we still delete the local file even if ConvertAPI crashes!
+    if (tempFilePath && fs.existsSync(tempFilePath)) {
+       fs.unlinkSync(tempFilePath);
+       console.log(`[CONVERT_ENGINE] 🧹 Cleaned up temporary file after error.`);
+    }
+
+    res.status(500).json({ success: false, error: "Conversion failed" });
+  }
+});
 
 app.post("/api/discover", async (req: Request, res: Response) => {
   try {
