@@ -1,6 +1,5 @@
 
 <div align="center">
-  <img src="https://raw.githubusercontent.com/lucide-react/lucide/main/icons/shield-check.svg" width="80" height="80" />
   <h1 style="font-size: 3rem; margin-bottom: 0;">Tender<span style="color: #7cb342;">Flow</span> AI</h1>
   <p style="font-size: 1.2rem; color: #64748b; font-style: italic; font-weight: 600;">"Turning FMCG Tenders into Secured Revenue."</p>
 
