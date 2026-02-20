@@ -16,6 +16,7 @@ import multer from 'multer';
 import path from 'path';
 import fs from 'fs';
 import { extractATCSlice, parseATCWithGrok } from './grok';
+
 // --- CONFIGURATION & MIDDLEWARE ---
 process.on('uncaughtException', (err) => {
   console.error('🔥 CRITICAL UNCAUGHT EXCEPTION:', err);
@@ -27,27 +28,47 @@ process.on('unhandledRejection', (reason, promise) => {
 
 const app = express();
 app.use(cors());
-app.use(express.json({ limit: "10mb" }));
+app.use(express.json({ limit: "50mb" }));
 
 // --- HELPER FUNCTIONS ---
-async function extractTextFromBuffer(buffer: ArrayBuffer): Promise<string> {
+async function extractTextFromBuffer(buffer: ArrayBuffer): Promise<{ fullText: string, extractedLinks: string[] }> {
   const data = new Uint8Array(buffer);
   const loadingTask = pdfjsLib.getDocument({ data });
   const pdfDocument = await loadingTask.promise;
   
   let fullText = "";
+  const extractedLinks: string[] = []; 
+  
   for (let pageNum = 1; pageNum <= pdfDocument.numPages; pageNum++) {
     const page = await pdfDocument.getPage(pageNum);
-    const textContent = await page.getTextContent();
     
+    const textContent = await page.getTextContent();
     let pageText = textContent.items
       .map((item: any) => item.str)
       .join(" ");
     pageText = pageText.replace(/\*{7,}/g, (match) => "Location not visible due to security reasons");
     pageText = pageText.replace(/\*{5,}([A-Z\s,]+)/g, "$1");
     fullText += pageText + "\n";
+
+    try {
+      const annotations = await page.getAnnotations();
+      annotations.forEach((anno: any) => {
+        // EXACT AS IT IS: No filtering. If it has a URL, grab it.
+        if (anno.subtype === 'Link' && anno.url) {
+             extractedLinks.push(anno.url);
+        }
+      });
+    } catch (e) {
+      console.warn(`⚠️ Warning: Failed to extract annotations from page ${pageNum}. Continuing without links from this page.`);
+    }
   }
-  return fullText;
+  const relativeLinks = fullText.match(/\/bidding\/buyer\/[a-zA-Z0-9\/_-]+/g) || [];
+  relativeLinks.forEach(u => extractedLinks.push(`https://bidplus.gem.gov.in${u}`));
+  
+  return { 
+    fullText, 
+    extractedLinks: Array.from(new Set(extractedLinks)) 
+  };
 }
 
 function addLogToConsole(agent: string, message: string) {
@@ -71,10 +92,9 @@ const storage = multer.diskStorage({
 const upload = multer({ storage: storage });
 
 // ============================================================================
-//  API ROUTES (ALL MOVED TO TOP LEVEL)
+//  API ROUTES
 // ============================================================================
 
-// 1. AUTH ROUTES
 app.post("/api/auth/login", login);           
 app.post("/api/vault/setup-pin", setupPin);   
 app.post("/api/vault/setup-2fa", setup2FA);
@@ -84,7 +104,6 @@ app.post("/api/auth/check-email", checkEmail);
 app.post("/api/auth/send-otp", sendAuthOtp);
 app.post("/api/auth/verify-otp", verifyAuthOtp);
 
-// 2. DISCOVERY ROUTE
 app.post("/api/discover", async (req: Request, res: Response) => {
   try {
     const { portal, category, filters, inventory } = req.body;
@@ -120,7 +139,6 @@ app.post("/api/discover", async (req: Request, res: Response) => {
   }
 });
 
-// 3. VAULT ROUTES
 app.post('/api/vault/upload', upload.single('file'), async (req: Request, res: Response) => {
     try {
         const { docId } = req.body;
@@ -173,7 +191,6 @@ app.post("/api/update-config", async (req: Request, res: Response) => {
   }
 });
 
-// 4. INVENTORY ROUTES
 app.get("/api/inventory", async (req, res) => {
   try {
     const result = await pool.query("SELECT * FROM product_inventory ORDER BY product_name ASC");
@@ -189,7 +206,6 @@ app.post("/api/inventory/update-stock", async (req, res) => {
   res.json({ success: true });
 });
 
-// 5. PARSING & CHAT ROUTES
 app.post("/api/copilot-chat", async (req: Request, res: Response) => {
   try {
     const { query, context, history } = req.body;
@@ -210,8 +226,8 @@ app.post("/api/fetch-rfp-url", async (req: Request, res: Response) => {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
       }
     });
-    const extractedText = await extractTextFromBuffer(response.data);
-    res.json({ content: extractedText }); 
+    const result = await extractTextFromBuffer(response.data);
+    res.json({ content: result.fullText, extractedLinks: result.extractedLinks }); 
   } catch (err: any) {
     console.error("URL Fetch Error:", err.message);
     res.status(500).json({ error: "Failed to fetch or parse GeM PDF" });
@@ -220,100 +236,81 @@ app.post("/api/fetch-rfp-url", async (req: Request, res: Response) => {
 
 app.post("/api/parse-rfp", async (req: Request, res: Response) => {
   try {
-    const { content, filters } = req.body;
+    const { content, filters, extractedLinks } = req.body;
 
     if (!content || typeof content !== "string") {
-      return res.status(400).json({
-        error: "INVALID_REQUEST",
-        message: "RFP content is missing or invalid"
-      });
+      return res.status(400).json({ error: "INVALID_REQUEST", message: "RFP content is missing" });
     }
 
-    // --- NEW: MULTI-AGENT EXECUTION ---
-    // 1. Isolate the bottom of the PDF for Grok
+    // --- WIDE NET LINK EXTRACTION ---
+    let finalLinks = extractedLinks || [];
+    if (finalLinks.length === 0) {
+       const relativeLinks = content.match(/\/bidding\/buyer\/[a-zA-Z0-9\/_-]+/g) || [];
+       const absoluteLinks = content.match(/https?:\/\/[^\s"')]+/g) || [];
+       
+       const mappedRelative = relativeLinks.map((u: string) => `https://bidplus.gem.gov.in${u}`);
+       finalLinks = Array.from(new Set([...absoluteLinks, ...mappedRelative]));
+    }
+    
+    // ❌ REMOVED THE JUNK FILTER COMPLETELY. 
+    // ALL links go straight to Grok now.
+
     const atcSlice = extractATCSlice(content);
 
-    // 2. Fire both LLMs simultaneously (Zero extra latency)
-    console.log("⚡ Firing Gemini & Grok in Parallel...");
+    console.log(`⚡ Firing Gemini & Grok in Parallel... (Sent ${finalLinks.length} URLs to Grok)`);
+    
     const [parsedData, atcData] = await Promise.all([
-      parseRFP(content),                 // Gemini extracts BOQ & Metadata
-      parseATCWithGrok(atcSlice)         // Grok extracts ATCs & Docs
+      parseRFP(content),                 
+      parseATCWithGrok(atcSlice, finalLinks) 
     ]);
 
-    // 3. Merge Grok's findings into the main data object
     parsedData.buyer_added_terms = atcData.atc_summary || [];
     parsedData.mandatoryDocuments = Array.from(new Set([
       ...(parsedData.mandatoryDocuments || []),
       ...(atcData.required_documents || [])
     ]));
-    // ----------------------------------
+    parsedData.extractedLinks = atcData.documents || []; 
 
     const products = Array.isArray(parsedData?.products) ? parsedData.products : [];
-
     if (products.length === 0) {
-      return res.json({
-        data: {
-          parsedData,
-          technicalAnalysis: { itemAnalyses: [] },
-          pricing: {},
-          riskAnalysis: [{
-              category: "Technical",
-              riskLevel: "High",
-              statement: "No structured line items found in RFP."
-          }],
-        },
-      });
+      return res.json({ data: { parsedData, technicalAnalysis: { itemAnalyses: [] }, pricing: {}, riskAnalysis: [] } });
     }
 
-    // Pass the merged data to your logic engines
     const technicalResult = runTechnicalAgent(products, productInventory);
     const hasLineItems = technicalResult?.itemAnalyses && technicalResult.itemAnalyses.length > 0;
 
-    const defaultFilters = {
-      manualAvgKms: 0,
-      manualRatePerKm: 55,
-      allowEMD: true,
-      minMatchThreshold: 20
-    };
-
+    const defaultFilters = { manualAvgKms: 0, manualRatePerKm: 55, allowEMD: true, minMatchThreshold: 20 };
     const financialResult = hasLineItems
       ? runFinancialAgent(technicalResult.itemAnalyses, parsedData, filters || defaultFilters)
       : { pricing: {}, riskEntries: [] ,summary: {}};
 
+    const grokRisks = atcData.risk_entries || [];
+    
     res.json({
       data: {
         parsedData,
         technicalAnalysis: { itemAnalyses: technicalResult.itemAnalyses ?? [] },
         pricing: financialResult || { pricing: {}, riskEntries: [], summary: {} },
         riskAnalysis: [
-          ...(technicalResult.riskEntries ?? []),
-          ...(financialResult.riskEntries ?? []),
+          ...grokRisks,
+          ...(technicalResult.riskEntries ?? []), 
+          ...(financialResult.riskEntries ?? [])
         ],
       },
     });
     
   } catch (err: any) {
-    console.error("🔥 BACKEND CRITICAL ERROR:", err);
-    return res.status(500).json({
-      error: "BACKEND_LIVE_ERROR",
-      message: err?.message || "Processing failed",
-    });
+    console.error("🔥 BACKEND ERROR:", err);
+    return res.status(500).json({ error: "BACKEND_LIVE_ERROR" });
   }
 });
-/* ============================================================================
-   DATABASE BOOTSTRAPPER (This fixes your persistence issues)
-   - Checks if tables exist
-   - Runs schema.sql if they don't
-   - Starts the server ONLY after DB is ready
-============================================================================ */
+
 const initDb = async () => {
   try {
-    // 1. Check connectivity
     const client = await pool.connect();
     client.release();
     console.log('✅ Connected to PostgreSQL');
 
-    // 2. Check if main table exists
     const check = await pool.query(`
       SELECT EXISTS (
         SELECT FROM information_schema.tables 
@@ -321,7 +318,6 @@ const initDb = async () => {
       );
     `);
 
-    // 3. Initialize if missing
     if (!check.rows[0].exists) {
       console.log('⚡ Initializing Database Schema...');
       const schemaPath = path.join(process.cwd(), 'server', 'schema.sql');
@@ -338,11 +334,10 @@ const initDb = async () => {
     }
   } catch (err) {
     console.error('❌ Database Initialization Failed:', err);
-    process.exit(1); // Optional: Stop server if DB fails
+    process.exit(1); 
   }
 };
 
-// Start Server AFTER DB Init
 initDb().then(() => {
   const PORT = process.env.PORT || 3001;
   app.listen(PORT, () => {

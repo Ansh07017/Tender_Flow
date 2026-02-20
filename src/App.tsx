@@ -30,13 +30,14 @@ import { initialConfig } from '../data/configData';
     Backend Service (Frontend → Backend ONLY)
 ------------------------------------------------------------------- */
 const apiService = {
-  parseRFP: async (rfpContent: string, inventory: any[]) => {
+  parseRFP: async (rfpContent: string, inventory: any[], extractedLinks: string[] = []) => {
     const res = await fetch('http://localhost:3001/api/parse-rfp', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ 
         content: rfpContent, 
-        inventory 
+        inventory,
+        extractedLinks
       }),
     });
 
@@ -67,10 +68,10 @@ const App: React.FC = () => {
   const [isDiscoveryScanning, setIsDiscoveryScanning] = useState(false);
   const [hasSearched, setHasSearched] = useState(false);
   
-  // --- NEW STATE: VAULT LOCK ---
+  // --- STATE: VAULT LOCK ---
   const [isVaultUnlocked, setIsVaultUnlocked] = useState(false);
 
-  // --- AUTO LOCK VAULT WHEN NAVIGATING AWAY ---
+  // Auto-lock vault when navigating away
   useEffect(() => {
     if (currentView !== 'vault') {
       setIsVaultUnlocked(false);
@@ -93,33 +94,38 @@ const App: React.FC = () => {
     []
   );
 
-  /* -------------------- Authentication Check -------------------- */
+  /* -------------------- Authentication Check (UPDATED) -------------------- */
   useEffect(() => {
     const savedUser = localStorage.getItem('tf_auth_user');
     const setupDone = localStorage.getItem('tf_setup_complete') === 'true';
 
     if (savedUser) {
-      setUser(JSON.parse(savedUser));
+      const parsedUser = JSON.parse(savedUser);
+      setUser(parsedUser);
       setIsAuthSessionActive(true);
-      if (setupDone) setOnboardingStep('NONE');
+      
+      // FIX: Ensure we resume onboarding if the user hit refresh mid-setup
+      if (setupDone) {
+        setOnboardingStep('NONE');
+      } else {
+        setOnboardingStep(parsedUser.has_pin ? 'TWO_FA_BIND' : 'PIN_SETUP');
+      }
     }
   }, []);
 
-  /* -------------------- AUTH ACTIONS (New) -------------------- */
+  /* -------------------- AUTH ACTIONS -------------------- */
   const handleLogout = () => {
-    // 1. Clear State
     setUser(null);
     setIsAuthSessionActive(false);
     setOnboardingStep('NONE');
     setCurrentView('frontpage');
-    setIsVaultUnlocked(false); // Ensure vault is locked
+    setIsVaultUnlocked(false); 
     
-    // 2. Clear Storage
     localStorage.removeItem('tf_auth_user');
+    localStorage.removeItem('tf_setup_complete');
   };
 
   const handleChangePin = () => {
-    // Re-trigger the PIN setup wizard
     setOnboardingStep('PIN_SETUP');
   };
 
@@ -146,10 +152,7 @@ const App: React.FC = () => {
           body: JSON.stringify({ 
             portal: 'gem', 
             category: heroProduct.productCategory, 
-            filters: {
-              ...config.discoveryFilters, 
-              bypassFilters: true      
-            },
+            filters: { ...config.discoveryFilters, bypassFilters: true },
             inventory 
           }),
         });
@@ -166,7 +169,7 @@ const App: React.FC = () => {
       }
     };
     triggerAutomatedDiscovery();
-  }, [isAuthSessionActive]); 
+  }, [isAuthSessionActive, config.discoveryFilters, inventory, addLog]); 
 
   /* -------------------- RFP State & Processing -------------------- */
   const updateRfpState = (rfpId: string, updates: Partial<Rfp>) => {
@@ -188,6 +191,8 @@ const App: React.FC = () => {
       addLog('SYSTEM', `Processing started for ${rfpId}`);
 
       let contentToParse = rfp.rawDocument;
+      let pdfLinks: string[] = [];
+
       if (rfp.source === 'URL') {
         updateRfpState(rfpId, { status: 'Extracting', activeAgent: 'SALES_AGENT' });
         addLog('DISCOVERY_AGENT', 'Fetching document from GeM portal...');
@@ -202,12 +207,15 @@ const App: React.FC = () => {
         
         const fetchData = await fetchRes.json();
         contentToParse = fetchData.content;
-        addLog('SALES_AGENT', 'Text extraction successful');
+        pdfLinks = fetchData.extractedLinks || []; 
+        
+        addLog('SALES_AGENT', `Extraction successful. Found ${pdfLinks.length} embedded documents.`);
       }
+      
       updateRfpState(rfpId, { status: 'Parsing', activeAgent: 'PARSING_ENGINE' });
       addLog('PARSING_ENGINE', 'Sending document to backend');
       
-      const backendResult = await apiService.parseRFP(contentToParse, inventory);
+      const backendResult = await apiService.parseRFP(contentToParse, inventory, pdfLinks);
       
       addLog('PARSING_ENGINE', 'Backend completed', backendResult);
       updateRfpState(rfpId, {
@@ -316,7 +324,6 @@ const App: React.FC = () => {
         );
 
       case 'vault':
-        // --- GATEKEEPER LOGIC ---
         if (!isVaultUnlocked) {
           return (
             <SignInScreen 
@@ -328,7 +335,7 @@ const App: React.FC = () => {
         return (
           <VaultScreen 
             onBack={() => {
-              setIsVaultUnlocked(false); // Lock it when they leave manually
+              setIsVaultUnlocked(false); 
               setCurrentView('config');
             }} 
           />
@@ -475,13 +482,22 @@ const App: React.FC = () => {
     );
   }
 
-  // --- GATE 2: ONBOARDING / CHANGE PIN ---
+  // --- GATE 2: ONBOARDING / CHANGE PIN (UPDATED) ---
   if (onboardingStep !== 'NONE') {
     return (
       <OnboardingWizard 
         step={onboardingStep} 
         email={user?.email || ''}
-        onComplete={() => setOnboardingStep('NONE')} 
+        onComplete={() => {
+          // FIX: Force App to remember you finished the setup!
+          setOnboardingStep('NONE');
+          if (user) {
+             const updatedUser = { ...user, is_setup_complete: true, has_pin: true };
+             setUser(updatedUser);
+             localStorage.setItem('tf_auth_user', JSON.stringify(updatedUser));
+             localStorage.setItem('tf_setup_complete', 'true');
+          }
+        }} 
         onStepChange={(nextStep: OnboardingStep) => setOnboardingStep(nextStep)}
         onBack={() => {
            if (!user?.is_setup_complete) {
@@ -514,5 +530,4 @@ const App: React.FC = () => {
     </div>
   );
 };
-
 export default App;

@@ -61,10 +61,11 @@ export const login = async (req: Request, res: Response) => {
 // 2. SETUP PIN
 export const setupPin = async (req: Request, res: Response) => {
   const { email, pin } = req.body;
-  if (!pin || pin.length !== 6) return res.status(400).json({ error: "Invalid PIN format" });
+  const pinStr = String(pin);
+  if (!pinStr || pinStr.length !== 6) return res.status(400).json({ error: "Invalid PIN format" });
 
   try {
-    const hashedPin = await bcrypt.hash(pin, SALT_ROUNDS);
+    const hashedPin = await bcrypt.hash(pinStr, SALT_ROUNDS);
     await query("UPDATE vault_access SET pin_hash = $1 WHERE recovery_email = $2", [hashedPin, email]);
     res.json({ success: true });
   } catch (err) {
@@ -83,7 +84,8 @@ export const verifyVaultAccess = async (req: Request, res: Response) => {
       if (result.rows.length === 0) return res.status(404).json({ error: "Account not found." });
 
       const user = result.rows[0];
-      const isMatch = await bcrypt.compare(pin, user.pin_hash);
+      const pinStr = String(pin); 
+      const isMatch = await bcrypt.compare(pinStr, user.pin_hash);
       
       if (isMatch) {
         if (user.is_2fa_enabled) {

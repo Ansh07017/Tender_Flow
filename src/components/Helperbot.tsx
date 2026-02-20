@@ -1,6 +1,7 @@
 import * as React from 'react';
 import { useState, useRef, useEffect } from 'react';
-import { Rfp} from '../../types';
+import { Rfp } from '../../types';
+import botIcon from '../assets/chatbot1.png';
 
 interface Message {
   sender: 'user' | 'bot';
@@ -20,6 +21,12 @@ export const HelperBot: React.FC<HelperBotProps> = ({ currentRfp }) => {
   const [input, setInput] = useState('');
   const [isTyping, setIsTyping] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+
+  // --- Drag and Drop State ---
+  const [pos, setPos] = useState({ x: 0, y: 0 });
+  const isDraggingRef = useRef(false);
+  const dragStartRef = useRef({ x: 0, y: 0 });
+  const hasDraggedRef = useRef(false);
 
   // Auto-scroll to bottom
   useEffect(() => {
@@ -47,8 +54,7 @@ export const HelperBot: React.FC<HelperBotProps> = ({ currentRfp }) => {
             parsedData: currentRfp.agentOutputs?.parsedData,
             financials: currentRfp.agentOutputs?.pricing
           } : null,
-          history: messages.slice(1)
-    .map(m => ({ role: m.sender, content: m.text }))
+          history: messages.slice(1).map(m => ({ role: m.sender, content: m.text }))
         }),
       });
 
@@ -67,8 +73,48 @@ export const HelperBot: React.FC<HelperBotProps> = ({ currentRfp }) => {
     }
   };
 
+  // --- Dragging Logic Handlers ---
+  const handlePointerDown = (e: React.PointerEvent<HTMLButtonElement>) => {
+    isDraggingRef.current = true;
+    hasDraggedRef.current = false;
+    dragStartRef.current = { x: e.clientX - pos.x, y: e.clientY - pos.y };
+    e.currentTarget.setPointerCapture(e.pointerId);
+  };
+
+  const handlePointerMove = (e: React.PointerEvent<HTMLButtonElement>) => {
+    if (!isDraggingRef.current) return;
+    
+    // Determine if it was an intentional drag vs a slight jiggle during click
+    const deltaX = Math.abs(e.clientX - dragStartRef.current.x - pos.x);
+    const deltaY = Math.abs(e.clientY - dragStartRef.current.y - pos.y);
+    if (deltaX > 3 || deltaY > 3) {
+      hasDraggedRef.current = true;
+    }
+    
+    setPos({
+      x: e.clientX - dragStartRef.current.x,
+      y: e.clientY - dragStartRef.current.y
+    });
+  };
+
+  const handlePointerUp = (e: React.PointerEvent<HTMLButtonElement>) => {
+    isDraggingRef.current = false;
+    e.currentTarget.releasePointerCapture(e.pointerId);
+  };
+
+  const toggleOpen = () => {
+    if (hasDraggedRef.current) {
+      hasDraggedRef.current = false; // Reset if it was a drag, don't toggle chat window
+      return; 
+    }
+    setIsOpen(!isOpen);
+  };
+
   return (
-    <div className={`fixed bottom-8 right-8 z-[200] flex flex-col items-end transition-all ${isOpen ? 'w-[400px]' : 'w-auto'}`}>
+    <div 
+      className={`fixed bottom-8 right-8 z-[200] flex flex-col items-end ${isOpen ? 'w-[400px]' : 'w-auto'}`}
+      style={{ transform: `translate(${pos.x}px, ${pos.y}px)` }}
+    >
       
       {/* CHAT WINDOW */}
       {isOpen && (
@@ -129,23 +175,27 @@ export const HelperBot: React.FC<HelperBotProps> = ({ currentRfp }) => {
                 onClick={handleSend}
                 className="bg-gold-500 text-slate-950 p-2.5 rounded-xl hover:bg-white transition-all shadow-lg shadow-gold-500/20"
               >
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" /></svg>
+                <svg className="w-4 h-4" fill="white" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" /></svg>
               </button>
             </div>
           </div>
         </div>
       )}
 
-      {/* FLOATING TOGGLE BUTTON */}
+      {/* FLOATING TOGGLE BUTTON (Draggable) */}
       <button 
-        onClick={() => setIsOpen(!isOpen)}
-        className="w-14 h-14 bg-gradient-to-br from-slate-800 to-slate-950 border border-gold-500/30 rounded-full shadow-[0_0_30px_rgba(212,175,55,0.15)] flex items-center justify-center group transition-all hover:scale-110 hover:border-gold-500"
+        onPointerDown={handlePointerDown}
+        onPointerMove={handlePointerMove}
+        onPointerUp={handlePointerUp}
+        onClick={toggleOpen}
+        className="w-14 h-14 shrink-0 bg-gradient-to-br from-slate-800 to-slate-950 border border-gold-500/30 rounded-full shadow-[0_0_30px_rgba(212,175,55,0.15)] flex items-center justify-center group hover:scale-110 hover:border-gold-500 touch-none cursor-grab active:cursor-grabbing transition-all duration-300"
+        style={{ transitionProperty: 'background-color, border-color, box-shadow, transform' }}
       >
         {isOpen ? (
-          <span className="text-xl font-bold text-white">✕</span>
+          <span className="text-xl font-bold text-white pointer-events-none">✕</span>
         ) : (
-          <div className="relative">
-            <span className="text-2xl">🤖</span>
+          <div className="relative w-full h-full flex items-center justify-center pointer-events-none">
+            <img src={botIcon} alt="Chatbot Icon" className="w-10 h-10 object-contain" />
             <span className="absolute -top-1 -right-1 w-3 h-3 bg-emerald-500 rounded-full border-2 border-slate-950 animate-ping" />
             <span className="absolute -top-1 -right-1 w-3 h-3 bg-emerald-500 rounded-full border-2 border-slate-950" />
           </div>

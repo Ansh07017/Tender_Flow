@@ -119,8 +119,13 @@ export const SignInScreen: React.FC<SignInScreenProps> = ({ onAuthSuccess, initi
       const data = await res.json();
       
       if (data.success) {
-        onAuthSuccess({ email, is_setup_complete: false, has_pin: false });
-      } else {
+        onAuthSuccess({ 
+          email, 
+          is_setup_complete: data.is_setup_complete,
+          has_pin: data.has_pin
+        });
+      } 
+      else {
         setError("Invalid code.");
       }
     } catch (err) { 

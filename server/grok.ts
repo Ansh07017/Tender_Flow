@@ -3,7 +3,10 @@ import Groq from "groq-sdk";
 import { extractJsonFromText } from "./utils/extractJson";
 
 const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
+
 export function extractATCSlice(fullText: string): string {
+  const normalizedText = fullText.replace(/\s+/g, ' '); 
+
   const startKeywords = [
     "Buyer Added Bid Specific Terms and Conditions", 
     "Buyer Added Bid Specific ATC", 
@@ -13,47 +16,64 @@ export function extractATCSlice(fullText: string): string {
   const endKeywords = ["अवीकरण/Disclaimer", "Disclaimer", "This Bid is also governed by"];
 
   let startIndex = -1;
-  // Use lastIndexOf because ATCs are always at the end of the document
   for (const kw of startKeywords) {
-    startIndex = fullText.lastIndexOf(kw);
+    startIndex = normalizedText.lastIndexOf(kw);
     if (startIndex !== -1) break;
   }
 
   let endIndex = -1;
   if (startIndex !== -1) {
     for (const kw of endKeywords) {
-      endIndex = fullText.indexOf(kw, startIndex);
+      endIndex = normalizedText.indexOf(kw, startIndex);
       if (endIndex !== -1) break;
     }
   }
 
-  // Plan A: Perfect Slice
+  let slice = "";
   if (startIndex !== -1 && endIndex !== -1 && endIndex > startIndex) {
-    return fullText.substring(startIndex, endIndex).trim();
-  } 
-  // Plan B: Found start, but no disclaimer (Fallback slice of 5000 chars)
-  else if (startIndex !== -1) {
-    return fullText.substring(startIndex, startIndex + 5000).trim();
-  } 
-  // Plan C: Failsafe (Just grab the bottom of the document)
-  else {
-    return fullText.slice(-8000).trim();
+    console.log("✂️ [GROK] Plan A: Perfect Slice Achieved!");
+    slice = normalizedText.substring(startIndex, endIndex).trim();
+  } else if (startIndex !== -1) {
+    console.log("✂️ [GROK] Plan B: Start found, but no Disclaimer. Grabbing 5000 chars.");
+    slice = normalizedText.substring(startIndex, startIndex + 5000).trim();
+  } else {
+    console.log("✂️ [GROK] Plan C: Keywords not found. Grabbing bottom 8000 chars.");
+    slice = fullText.slice(-8000).trim(); 
   }
+
+  return slice;
 }
 
 /**
- * Sends the sliced ATC text to Llama-3.3 on Groq for lightning-fast JSON extraction.
+ * NEW: Accepts both the ATC Text AND the raw URLs extracted from the PDF.
  */
-export async function parseATCWithGrok(atcText: string) {
-  const prompt = `You are a strict Tender Compliance Officer. Read the following Buyer Added Terms and Conditions (ATC) extracted from an Indian GeM tender.
+export async function parseATCWithGrok(atcText: string, rawLinks: string[] = []) {
+  console.log(`🤖 [GROK] Analyzing ATC Slice length: ${atcText.length} characters & ${rawLinks.length} URLs.`);
+
+const prompt = `You are a Senior Legal and Technical Compliance Officer analyzing an Indian GeM (Government e-Marketplace) tender.
   
-  TASK 1: Extract the 3-5 most critical rules/risks (e.g., Payment terms, Delivery conditions, specific Brands requested). Keep them under 100 characters each.
-  TASK 2: Extract a strict array of specific Documents or Certificates the buyer is demanding (e.g., "OEM Authorization", "ISO 9001", "Past Experience Certificate").
+  TASK 1 (DEEP SUMMARY): Write a highly detailed executive summary of the ATCs. Break it down into 3 to 4 bullet points. Each point MUST be a full sentence (minimum 15-25 words).
   
-  RETURN ONLY RAW JSON. NO MARKDOWN, NO PREAMBLE.
+  TASK 2 (REQUIRED DOCS): Extract an array of specific Certificates the buyer is demanding.
+  
+  TASK 3 (SMART LINK EXTRACTION): I have provided a raw list of ALL URLs extracted from the document below. Evaluate them all. Select the URLs that point to vital tender documents (e.g., Technical Specifications, ATC, BoQ, Corrigendum). Assign a professional, human-readable name to each. You may safely ignore generic links (like gem.gov.in homepages or contact links).
+  
+  TASK 4 (RISK ANALYSIS): Generate 1 to 3 specific Risk Entries based on the ATC text. Categorize them as "Financial", "Technical", or "Logistics". Assign a risk level ("Low", "Medium", "High").
+
+  RAW URLs EXTRACTED FROM PDF:
+  ${JSON.stringify(rawLinks)}
+
+  RETURN ONLY RAW JSON. NO MARKDOWN.
   {
-    "atc_summary": ["Rule 1", "Rule 2"],
-    "required_documents": ["Doc 1", "Doc 2"]
+    "atc_summary": ["Point 1...", "Point 2..."],
+    "required_documents": ["OEM Auth"],
+    "documents": [
+      { "name": "Buyer ATC Document", "url": "https://..." },
+      { "name": "Technical Specifications", "url": "https://..." }
+    ],
+    "risk_entries": [
+      { "category": "Financial", "statement": "Payment terms are Net-90.", "riskLevel": "High" }
+    ]
   }
   
   ATC TEXT TO ANALYZE:
@@ -63,17 +83,19 @@ export async function parseATCWithGrok(atcText: string) {
   try {
     const response = await groq.chat.completions.create({
       messages: [{ role: "user", content: prompt }],
-      model: "llama-3.3-70b-versatile", // Insanely fast model for this
+      model: "llama-3.3-70b-versatile",
       temperature: 0.1
     });
 
     const rawOutput = response.choices[0]?.message?.content || "{}";
     const cleanJson = extractJsonFromText(rawOutput);
-    return JSON.parse(cleanJson);
+    const parsed = JSON.parse(cleanJson);
     
-  } catch (error) {
-    console.error("⚠️ Grok ATC Extraction Failed:", error);
-    // Graceful fallback so it doesn't crash the main pipeline
-    return { atc_summary: [], required_documents: [] };
+    console.log(`✅ [GROK] Processed ${parsed.documents?.length || 0} smart links and generated summary.`);
+    return parsed;
+    
+  } catch (error: any) {
+    console.error("❌ [GROK] CRITICAL ERROR IN EXTRACTION:", error.message);
+    return { atc_summary: [], required_documents: [], documents: [] };
   }
 }

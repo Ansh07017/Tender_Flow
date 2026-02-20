@@ -31,6 +31,11 @@ export type TruckType =
   | 'MEDIUM_TRUCK'
   | 'HEAVY_TRUCK';
 
+export interface ExtractedDocument {
+  name: string;
+  url: string;
+}
+
 export interface SKU {
   skuId: string;
   productName: string;
@@ -116,8 +121,9 @@ export interface ParsedRfpData {
   };
 
   products: RfpProductLineItem[];
-
+buyer_added_terms?: string[];
   mandatoryDocuments: string[];
+  extractedLinks?: ExtractedDocument[];
 
 financialConditions: FinancialConditions;
 

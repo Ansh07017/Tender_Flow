@@ -8,6 +8,7 @@ import logo from '../assets/TenderFlow.png';
 interface OnboardingWizardProps {
   step: OnboardingStep;
   email: string;
+  isSetupComplete?: boolean;
   onComplete: () => void;
   onStepChange: (step: OnboardingStep) => void;
   onBack: () => void;
@@ -17,6 +18,7 @@ export const OnboardingWizard: React.FC<OnboardingWizardProps> = ({
   step, 
   email, 
   onComplete, 
+  isSetupComplete,
   onStepChange,
   onBack 
 }) => {
@@ -64,6 +66,7 @@ export const OnboardingWizard: React.FC<OnboardingWizardProps> = ({
         body: JSON.stringify({ email, pin }),
       });
       if (!res.ok) throw new Error("Failed to save PIN.");
+      
       onStepChange('TWO_FA_BIND');
     } catch (err) {
       setError("System error saving PIN. Try again.");
