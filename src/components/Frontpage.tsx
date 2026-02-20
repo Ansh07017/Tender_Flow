@@ -1,4 +1,5 @@
-import React, { useState, useEffect } from 'react';
+import *  as React from 'react';
+import { useState, useEffect } from 'react';
 import { RfpInput } from './RfpInput'; 
 import { Tender} from '../../types';
 
@@ -139,8 +140,8 @@ export const FrontPage: React.FC<FrontPageProps> = ({
             <div className="flex flex-col gap-1">
               <div className="flex items-center gap-2">
                 <span className="text-[8px] font-black px-2 py-0.5 rounded bg-slate-800 text-slate-400">{(bid as Tender).id}</span>
-                <span className="text-[7px] font-black px-1.5 py-0.5 rounded-full border border-emerald-500/50 text-emerald-400 bg-emerald-500/10 flex items-center gap-1">
-                  ● VERIFIED
+                <span className="ml-3 px-2 py-0.5 bg-blue-500/10 border border-blue-500/30 text-blue-400 rounded-md text-[7px] font-black uppercase tracking-widest">
+                  Sales Agent: Due ≤ 90 Days
                 </span>
                 <span className="text-sm font-bold text-white group-hover:text-gold-400 transition-colors uppercase italic">
                   {(bid as Tender).title}

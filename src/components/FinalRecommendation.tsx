@@ -3,7 +3,7 @@ import { useState } from 'react';
 import { 
   FileText, AlertTriangle, Share2, Edit3, 
   ArrowLeft, Briefcase, TrendingUp, ShieldAlert, 
-  BadgeCheck 
+  BadgeCheck, Table, Download, Eye
 } from 'lucide-react';
 import { Rfp, TechnicalAgentOutput, FinancialAgentResult, BlankDoc } from '../../types';
 import jsPDF from 'jspdf';
@@ -21,12 +21,13 @@ export const FinalRecommendation: React.FC<FinalRecommendationProps> = ({ rfp, a
   const [isEditing, setIsEditing] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
 
-  // --- 1. DATA EXTRACTION & FALLBACKS ---
+  // --- 1. DATA EXTRACTION & FALLBACKS (CRASH SECURED) ---
   const technical = rfp.agentOutputs?.technicalAnalysis as TechnicalAgentOutput;
   const financial = rfp.agentOutputs?.pricing as FinancialAgentResult;
   
-  // Fetch risks from our updated App.tsx mapping or fallback
-  const riskList = rfp.agentOutputs?.parsedData?.riskAnalysis || financial?.riskEntries || [];
+  // SECURE ARRAY CHECK: Prevents React crash if AI hallucinates an object instead of an array
+  const rawRisks = rfp.agentOutputs?.parsedData?.riskAnalysis || financial?.riskEntries;
+  const riskList = Array.isArray(rawRisks) ? rawRisks : [];
   
   // Dynamic Data from Context
   const calc = analysisContext?.liveCalculations || {};
@@ -36,18 +37,65 @@ export const FinalRecommendation: React.FC<FinalRecommendationProps> = ({ rfp, a
   const finalValue = calc.finalTotal || financial?.summary?.finalBidValue || 0;
 
   // --- 2. VERDICT LOGIC ---
-  const calculateScore = () => {
+  const bidScore = (() => {
     if (!technical || !financial) return 0;
     const techScore = technical.itemAnalyses.reduce((acc, item) => acc + (item.selectedSku?.matchPercentage || 0), 0) / (technical.itemAnalyses.length || 1);
     const finScore = Math.min(marginPercent * 5, 100); 
     const riskScore = riskList.some((r: any) => r.riskLevel === 'High') ? 0 : riskList.some((r: any) => r.riskLevel === 'Medium') ? 50 : 100;
     return Math.round((techScore * 0.5) + (finScore * 0.3) + (riskScore * 0.2));
-  };
+  })();
 
-  const bidScore = calculateScore();
   const verdict = bidScore >= 70 ? 'BID' : bidScore >= 40 ? 'REVIEW' : 'NO-BID';
 
-  // --- 3. MULTI-PAGE PDF GENERATOR ENGINE ---
+  // --- 3. SYSTEM DOCUMENT GENERATORS (CSV/Excel) - BLOB SECURED ---
+  const handleDownloadSystemDoc = (type: 'TECH' | 'FIN') => {
+    let csvContent = "";
+    let filename = "";
+
+    if (type === 'TECH') {
+      filename = `Technical_Compliance_Matrix_${rfp.id}.csv`;
+      const rows = [
+        ['RFP Requirement', 'Required Qty', 'Matched SKU', 'Internal Product Name', 'Match %'],
+        ...(technical?.itemAnalyses.map(item => [
+          `"${item.rfpLineItem.name.replace(/"/g, '""')}"`, // Escapes internal quotes
+          item.rfpLineItem.quantity,
+          `"${item.selectedSku?.skuId || 'N/A'}"`,
+          `"${item.selectedSku?.productName?.replace(/"/g, '""') || 'No Match'}"`,
+          `${item.selectedSku?.matchPercentage || 0}%`
+        ]) || [])
+      ];
+      csvContent = rows.map(e => e.join(",")).join("\n");
+    } else {
+      filename = `Financial_BoQ_${rfp.id}.csv`;
+      const rows = [
+        ['Cost Component', 'Calculated Amount (INR)', 'Notes'],
+        ['Base Material Cost', Math.round(calc.materialBase || 0), 'Sum of all matched SKUs'],
+        ['Testing & Acceptance Services', Math.round(calc.testing || 0), 'Laboratory testing provisions'],
+        ['Total GST', Math.round(calc.gst || 0), 'Calculated per item'],
+        ['Logistics (w/ Buffer)', Math.round(calc.logistics || 0), 'Based on distance/rate'],
+        ['GeM Brokerage Fee', Math.round(calc.gemFee || 0), 'Standard platform fee'],
+        ['EMD Provision', Math.round(calc.emd || 0), 'Earnest Money Deposit'],
+        ['EPBG Provision', Math.round(calc.epbg || 0), 'Performance Guarantee'],
+        [`Net Profit (${marginPercent}%)`, Math.round(calc.profit || 0), 'Target margin'],
+        ['', '', ''],
+        ['FINAL AUTHORIZED BID', Math.round(finalValue), 'Total loaded value']
+      ];
+      csvContent = rows.map(e => e.join(",")).join("\n");
+    }
+
+    // BLOB FIX: Bypasses browser URL limits and encoding crashes
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.setAttribute("href", url);
+    link.setAttribute("download", filename);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url); // Clears RAM instantly
+  };
+
+  // --- 4. MASTER PDF REPORT ---
   const handleGeneratePdf = () => {
     setIsGenerating(true);
     
@@ -122,6 +170,7 @@ export const FinalRecommendation: React.FC<FinalRecommendationProps> = ({ rfp, a
           ["GeM Brokerage Fee", `Rs. ${Math.round(calc.gemFee || 0).toLocaleString()}`],
           ["Required EMD Provision", `Rs. ${Math.round(calc.emd || 0).toLocaleString()}`],
           ["Required EPBG Provision", `Rs. ${Math.round(calc.epbg || 0).toLocaleString()}`],
+          ["Testing & Acceptance Cost", `Rs. ${Math.round(calc.testing || 0).toLocaleString()}`],
           [`Net Profit (${marginPercent}%)`, `Rs. ${Math.round(calc.profit || 0).toLocaleString()}`],
           ["FINAL AUTHORIZED BID", `Rs. ${Math.round(finalValue).toLocaleString()}`]
         ];
@@ -175,7 +224,7 @@ export const FinalRecommendation: React.FC<FinalRecommendationProps> = ({ rfp, a
         <div className="grid grid-cols-12 gap-6 max-w-[1600px] mx-auto">
           
           {/* LEFT COL: ANALYSIS SUMMARY (8 Cols) */}
-          <div className="col-span-12 lg:col-span-8 flex flex-col gap-6">
+          <div className="col-span-12 lg:col-span-7 flex flex-col gap-6">
             
             {/* 1. TECHNICAL MATCH CARD */}
             <div className="bg-slate-900/40 border border-slate-800 rounded-3xl p-6 backdrop-blur-sm shadow-xl">
@@ -186,7 +235,7 @@ export const FinalRecommendation: React.FC<FinalRecommendationProps> = ({ rfp, a
                 <span className="text-2xl font-bold text-white">{Math.round(bidScore)}<span className="text-sm text-slate-500">/100</span></span>
               </div>
 
-              <div className="space-y-4">
+              <div className="space-y-4 max-h-[250px] overflow-y-auto scrollbar-hide pr-2">
                 {technical?.itemAnalyses.map((item, idx) => (
                   <div key={idx} className="flex items-center justify-between p-4 bg-slate-950 rounded-2xl border border-slate-800/50">
                     <div className="flex items-center gap-4">
@@ -265,8 +314,8 @@ export const FinalRecommendation: React.FC<FinalRecommendationProps> = ({ rfp, a
             </div>
           </div>
 
-          {/* RIGHT COL: FINANCIALS & DOCS (4 Cols) */}
-          <div className="col-span-12 lg:col-span-4 flex flex-col gap-6">
+          {/* RIGHT COL: FINANCIALS & DOCS (5 Cols) */}
+          <div className="col-span-12 lg:col-span-5 flex flex-col gap-6">
             
             {/* 1. FINANCIAL SUMMARY */}
             <div className="bg-gradient-to-b from-slate-900 to-slate-950 border border-slate-800 rounded-3xl p-6 relative overflow-hidden shadow-xl">
@@ -310,10 +359,41 @@ export const FinalRecommendation: React.FC<FinalRecommendationProps> = ({ rfp, a
             {/* 2. DYNAMIC DOCUMENT HUB */}
             <div className="flex-grow bg-slate-900/40 border border-slate-800 rounded-3xl p-6 flex flex-col shadow-xl">
               <h3 className="text-sm font-black text-slate-400 uppercase tracking-widest mb-6 flex items-center gap-2">
-                <Briefcase className="w-4 h-4 text-blue-500" /> Exportable Documents
+                <Briefcase className="w-4 h-4 text-blue-500" /> Editable Bid Documents
               </h3>
 
-              <div className="space-y-3 flex-grow overflow-y-auto max-h-[300px] scrollbar-hide pr-2">
+              <div className="space-y-3 flex-grow overflow-y-auto max-h-[350px] scrollbar-hide pr-2">
+                
+                {/* 1. AUTO-GENERATED SYSTEM DOCS */}
+                <div className="group flex flex-col p-4 bg-slate-950 border border-gold-500/30 rounded-2xl relative overflow-hidden">
+                  <div className="absolute top-0 right-0 bg-gold-500 text-slate-950 text-[8px] font-black px-2 py-0.5 rounded-bl-lg uppercase">System Generated</div>
+                  <div className="flex items-center gap-3 mb-3 mt-1">
+                    <div className="p-2 rounded-lg bg-emerald-900/20 text-emerald-400"><Table className="w-5 h-5" /></div>
+                    <div>
+                      <p className="text-xs font-bold text-white">Financial BoQ</p>
+                      <p className="text-[9px] text-slate-500 uppercase tracking-widest">Excel / CSV Format</p>
+                    </div>
+                  </div>
+                  <button onClick={() => handleDownloadSystemDoc('FIN')} className="w-full py-2 flex justify-center items-center gap-2 bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 hover:bg-emerald-500 hover:text-white rounded-xl text-[9px] font-black uppercase tracking-widest transition-all">
+                    <Download className="w-3 h-3" /> Download & Edit
+                  </button>
+                </div>
+
+                <div className="group flex flex-col p-4 bg-slate-950 border border-gold-500/30 rounded-2xl relative overflow-hidden">
+                  <div className="absolute top-0 right-0 bg-gold-500 text-slate-950 text-[8px] font-black px-2 py-0.5 rounded-bl-lg uppercase">System Generated</div>
+                  <div className="flex items-center gap-3 mb-3 mt-1">
+                    <div className="p-2 rounded-lg bg-emerald-900/20 text-emerald-400"><Table className="w-5 h-5" /></div>
+                    <div>
+                      <p className="text-xs font-bold text-white">Technical Compliance Matrix</p>
+                      <p className="text-[9px] text-slate-500 uppercase tracking-widest">Excel / CSV Format</p>
+                    </div>
+                  </div>
+                  <button onClick={() => handleDownloadSystemDoc('TECH')} className="w-full py-2 flex justify-center items-center gap-2 bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 hover:bg-emerald-500 hover:text-white rounded-xl text-[9px] font-black uppercase tracking-widest transition-all">
+                    <Download className="w-3 h-3" /> Download & Edit
+                  </button>
+                </div>
+
+                {/* 2. DOCUMENTS EXTRACTED/CONVERTED FROM ANALYSIS SCREEN */}
                 {docs.length > 0 ? docs.map((doc: BlankDoc, i: number) => (
                    <div key={i} className="group flex flex-col p-4 bg-slate-950 border border-slate-800 rounded-2xl">
                       <div className="flex items-center gap-3 mb-3">
@@ -327,24 +407,18 @@ export const FinalRecommendation: React.FC<FinalRecommendationProps> = ({ rfp, a
                       </div>
                       
                       {doc.status === 'CONVERTED_TO_DOCX' ? (
-                        <button 
-                          onClick={() => { if(doc.docxUrl) window.open(doc.docxUrl, '_blank'); }} 
-                          className="w-full py-2 bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 hover:bg-emerald-500 hover:text-white rounded-xl text-[9px] font-black uppercase tracking-widest transition-all"
-                        >
-                          Download & Edit
+                        <button onClick={() => { if(doc.docxUrl) window.open(doc.docxUrl, '_blank'); }} className="w-full py-2 flex items-center justify-center gap-2 bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 hover:bg-emerald-500 hover:text-white rounded-xl text-[9px] font-black uppercase tracking-widest transition-all">
+                          <Download className="w-3 h-3" /> Download & Edit
                         </button>
                       ) : (
-                        <button 
-                          onClick={() => window.open(doc.url, '_blank')} 
-                          className="w-full py-2 bg-slate-800 text-slate-300 hover:bg-slate-700 hover:text-white rounded-xl text-[9px] font-black uppercase tracking-widest transition-all"
-                        >
-                          Preview File
+                        <button onClick={() => window.open(doc.url, '_blank')} className="w-full py-2 flex items-center justify-center gap-2 bg-slate-800 text-slate-300 hover:bg-slate-700 hover:text-white rounded-xl text-[9px] font-black uppercase tracking-widest transition-all">
+                          <Eye className="w-3 h-3" /> Preview File
                         </button>
                       )}
                    </div>
                 )) : (
-                  <div className="text-center py-8 text-slate-600 text-xs italic border border-dashed border-slate-800 rounded-xl">
-                     No documents forwarded from analysis.
+                  <div className="text-center py-4 text-slate-600 text-[10px] font-bold uppercase tracking-widest border border-dashed border-slate-800 rounded-xl">
+                     No external documents forwarded.
                   </div>
                 )}
               </div>
@@ -360,15 +434,10 @@ export const FinalRecommendation: React.FC<FinalRecommendationProps> = ({ rfp, a
             Abort Process
          </button>
          
-         <button 
-            onClick={handleGeneratePdf}
-            disabled={isGenerating}
-            className="flex items-center gap-3 px-8 py-4 bg-gold-500 hover:bg-white text-slate-950 rounded-xl shadow-[0_0_20px_rgba(212,175,55,0.3)] transition-all text-xs font-black uppercase tracking-widest disabled:opacity-50"
-         >
+         <button onClick={handleGeneratePdf} disabled={isGenerating} className="flex items-center gap-3 px-8 py-4 bg-gold-500 hover:bg-white text-slate-950 rounded-xl shadow-[0_0_20px_rgba(212,175,55,0.3)] transition-all text-xs font-black uppercase tracking-widest disabled:opacity-50">
             {isGenerating ? 'Exporting PDF...' : <><Share2 className="w-4 h-4" /> Export Executive Report</>}
          </button>
       </div>
-
       <style>{`.scrollbar-hide::-webkit-scrollbar { display: none; }`}</style>
     </div>
   );

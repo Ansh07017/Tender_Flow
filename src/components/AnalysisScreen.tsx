@@ -37,6 +37,8 @@ export const AnalysisScreen: React.FC<AnalysisScreenProps> = ({ rfp, config, onB
   const [profitMargin, setProfitMargin] = useState(15);
   const [manualOverrides, setManualOverrides] = useState<Record<string, number>>({});
   const [editingItem, setEditingItem] = useState<any | null>(null);
+  const [expandedTechItem, setExpandedTechItem] = useState<number | null>(null); 
+  const [testingProvision, setTestingProvision] = useState<number>(15000); // <-- NEW: Dynamic Testing Slider State
 
   // --- 3. DYNAMIC DOCUMENT GENERATOR ---
   const initialBlankDocs = useMemo(() => {
@@ -103,7 +105,7 @@ export const AnalysisScreen: React.FC<AnalysisScreenProps> = ({ rfp, config, onB
 
     const baseLogistics = logisticsParams.kms * logisticsParams.rate;
     const logisticsWithBuffer = baseLogistics * (1 + (logisticsParams.bufferPercent / 100));
-
+    const testingCost = testingProvision; // <-- FIXED: Connected to slider state
     let gemFee = 0;
     if (totalMaterialBase > 1000000 && totalMaterialBase <= 100000000) gemFee = totalMaterialBase * 0.0030;
     else if (totalMaterialBase > 100000000) gemFee = 300000;
@@ -111,7 +113,7 @@ export const AnalysisScreen: React.FC<AnalysisScreenProps> = ({ rfp, config, onB
     let emd = parsedMetadata.emdAmount || (financialCond?.emd === "Required" ? totalMaterialBase * 0.02 : 0);
     let epbg = parsedMetadata.epbgPercent ? totalMaterialBase * (parsedMetadata.epbgPercent / 100) : (financialCond?.epbg === "Required" ? totalMaterialBase * 0.03 : 0);
 
-    const costBasis = totalMaterialBase + logisticsWithBuffer;
+    const costBasis = totalMaterialBase + logisticsWithBuffer + testingCost;
     const profitAmount = costBasis * (profitMargin / 100);
 
     return {
@@ -119,9 +121,10 @@ export const AnalysisScreen: React.FC<AnalysisScreenProps> = ({ rfp, config, onB
       gst: totalGst,
       logistics: logisticsWithBuffer,
       gemFee, epbg, emd, profit: profitAmount,
-      finalTotal: totalMaterialBase + totalGst + logisticsWithBuffer + gemFee + epbg + emd + profitAmount
+      testing: testingCost,
+      finalTotal: totalMaterialBase + totalGst + logisticsWithBuffer + gemFee + epbg + emd + profitAmount + testingCost
     };
-  }, [technicalResults, manualOverrides, logisticsParams, profitMargin, parsedMetadata, financialCond]);
+  }, [technicalResults, manualOverrides, logisticsParams, profitMargin, parsedMetadata, financialCond, testingProvision]); // <-- Added testingProvision to dependencies
 
   // --- 5. FULLY RESTORED ACTION HANDLERS ---
   const handleDownloadPDF = () => {
@@ -136,6 +139,7 @@ export const AnalysisScreen: React.FC<AnalysisScreenProps> = ({ rfp, config, onB
 
     const financials = [
       ["Material Base Cost", `Rs. ${Math.round(liveCalculations.materialBase).toLocaleString()}`],
+      ["Testing & Certification", `Rs. ${Math.round(liveCalculations.testing).toLocaleString()}`], // <-- NEW: Added to PDF Report
       ["Total GST", `Rs. ${Math.round(liveCalculations.gst).toLocaleString()}`],
       ["Logistics Cost", `Rs. ${Math.round(liveCalculations.logistics).toLocaleString()}`],
       ["GeM Brokerage", `Rs. ${Math.round(liveCalculations.gemFee).toLocaleString()}`],
@@ -177,13 +181,10 @@ export const AnalysisScreen: React.FC<AnalysisScreenProps> = ({ rfp, config, onB
     setEditingItem(null);
   };
 
-// HIGHLIGHT AND REPLACE THESE TWO FUNCTIONS COMPLETELY:
   const handleConvertDoc = async (docId: string, url: string, name: string) => {
-    // 1. Set status to CONVERTING (UI shows spinner)
     setBlankDocs(prev => prev.map(d => d.id === docId ? { ...d, status: 'CONVERTING' } : d));
 
     try {
-      // 2. Call our new Backend API
       const res = await fetch('http://localhost:3001/api/convert-pdf', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -192,7 +193,6 @@ export const AnalysisScreen: React.FC<AnalysisScreenProps> = ({ rfp, config, onB
       
       const data = await res.json();
 
-      // 3. Update status to CONVERTED and save the download link
       if (data.success) {
         setBlankDocs(prev => prev.map(d => 
           d.id === docId ? { ...d, status: 'CONVERTED_TO_DOCX', docxUrl: data.docxUrl } : d
@@ -210,7 +210,6 @@ export const AnalysisScreen: React.FC<AnalysisScreenProps> = ({ rfp, config, onB
   const handleConvertAll = () => {
     blankDocs.forEach((doc, index) => {
       if (doc.status === 'DETECTED') {
-        // Stagger API calls by 1.5 seconds to prevent rate-limiting the API
         setTimeout(() => handleConvertDoc(doc.id, doc.url, doc.name), index * 1500);
       }
     });
@@ -246,7 +245,6 @@ export const AnalysisScreen: React.FC<AnalysisScreenProps> = ({ rfp, config, onB
 
       <div className="grid grid-cols-2 gap-6 items-start">
         {/* LEFT: TECHNICAL SKU MATCHING */}
-        {/* Removed internal scroll to let the global page scroll handle it */}
         <div className="bg-slate-900/40 backdrop-blur-md border border-slate-800/80 rounded-[2rem] p-6 flex flex-col shadow-xl">
           <h3 className="text-xs font-black text-slate-500 uppercase tracking-widest mb-4 flex items-center gap-2">
              <Scale className="w-4 h-4" /> Technical SKU Matching
@@ -256,7 +254,7 @@ export const AnalysisScreen: React.FC<AnalysisScreenProps> = ({ rfp, config, onB
                const isOverridden = manualOverrides[analysis.rfpLineItem.name] !== undefined;
                const currentPrice = isOverridden ? manualOverrides[analysis.rfpLineItem.name] : (analysis.selectedSku?.unitSalesPrice || 0);
 
-               return (
+              return (
                   <div key={idx} className={`border p-5 rounded-2xl transition-all ${isOverridden ? 'bg-gold-500/5 border-gold-500/30' : 'bg-slate-950/80 border-slate-800/80'}`}>
                     <div className="flex justify-between items-start mb-3">
                       <div className="space-y-1">
@@ -284,6 +282,37 @@ export const AnalysisScreen: React.FC<AnalysisScreenProps> = ({ rfp, config, onB
                           </p>
                       </div>
                     </div>
+
+                    <div className="mt-4 border-t border-slate-800/50 pt-3">
+                      <button
+                        onClick={() => setExpandedTechItem(expandedTechItem === idx ? null : idx)}
+                        className="text-[9px] font-black text-blue-400 uppercase tracking-widest hover:text-white flex items-center gap-1 transition-colors"
+                      >
+                        {expandedTechItem === idx ? '▼ Hide Comparison Table' : '▶ View Top 3 Alternatives'}
+                      </button>
+                      {expandedTechItem === idx && (
+                        <div className="mt-3 bg-slate-950/80 border border-slate-800 rounded-xl overflow-hidden animate-in slide-in-from-top-2">
+                          <table className="w-full text-left text-[9px]">
+                            <thead className="bg-slate-900 text-slate-400 uppercase">
+                              <tr>
+                                <th className="p-2 pl-4">Rank</th>
+                                <th className="p-2">SKU ID</th>
+                                <th className="p-2 text-right pr-4">Spec Match</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {(analysis.top3Recommendations || []).map((rec: any, rIdx: number) => (
+                                <tr key={rIdx} className="border-t border-slate-800/50">
+                                  <td className="p-2 pl-4 text-slate-500 font-bold">#{rIdx + 1}</td>
+                                  <td className="p-2 text-slate-300">{rec.skuId}</td>
+                                  <td className="p-2 pr-4 text-right font-bold text-emerald-400">{rec.matchPercentage}%</td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      )}
+                    </div>
                   </div>
                );
             })}
@@ -304,8 +333,21 @@ export const AnalysisScreen: React.FC<AnalysisScreenProps> = ({ rfp, config, onB
               <div className="text-right mt-1 text-[10px] font-mono text-emerald-400">{profitMargin}% Margin Applied</div>
             </div>
 
+            {/* NEW: Testing Provision Slider */}
+            <div>
+              <label className="text-[10px] uppercase text-slate-400 font-bold block mb-2 mt-4">Testing & Certification Provision (₹)</label>
+              <input 
+                type="range" min="0" max="100000" step="1000"
+                value={testingProvision} 
+                onChange={(e) => setTestingProvision(Number(e.target.value))}
+                className="w-full accent-blue-500 h-1 bg-slate-800 rounded-lg appearance-none cursor-pointer"
+              />
+              <div className="text-right mt-1 text-[10px] font-mono text-blue-400">₹{testingProvision.toLocaleString()} Allocated</div>
+            </div>
+
             <div className="space-y-3 pt-4 border-t border-slate-800/80">
               <FinRow label="Total Material Base" value={liveCalculations.materialBase} />
+              <FinRow label="Testing & Acceptance Labs" value={liveCalculations.testing} /> 
               <FinRow label="Total GST" value={liveCalculations.gst} />
               <FinRow label="Logistics (w/ Buffer)" value={liveCalculations.logistics} />
               <FinRow label={`Net Profit (${profitMargin}%)`} value={liveCalculations.profit} color="text-emerald-500" />
@@ -332,7 +374,6 @@ export const AnalysisScreen: React.FC<AnalysisScreenProps> = ({ rfp, config, onB
   const renderCompliance = () => (
     <div className="flex flex-col gap-6 w-full">
       
-      {/* 2. CHANGE: Nested grid just for the top two columns */}
       <div className="grid grid-cols-2 gap-6 items-start w-full">
       {/* LEFT COLUMN */}
       <div className="space-y-6">
@@ -415,9 +456,7 @@ export const AnalysisScreen: React.FC<AnalysisScreenProps> = ({ rfp, config, onB
                      </div>
                   </div>
                   
-                  {/* BUTTON GROUP UI OVERHAUL */}
                   <div className="flex gap-3 mt-1">
-                     {/* Preview Button is Constant - Uses Share Button UI Style (Unclicked) */}
                      <button 
                         onClick={() => window.open(doc.url, '_blank')}
                         className="flex-1 py-3 bg-slate-800 text-slate-300 border border-slate-700 hover:bg-slate-700 hover:text-white text-[9px] font-black uppercase tracking-widest rounded-xl transition-all flex items-center justify-center gap-2"
@@ -425,11 +464,9 @@ export const AnalysisScreen: React.FC<AnalysisScreenProps> = ({ rfp, config, onB
                         <Eye className="w-4 h-4" /> Preview
                      </button>
                      
-                     {/* Convert Button Uses Export PDF UI Style (Active/Clicked) */}
-                     {/* Convert Button Uses Export PDF UI Style (Active/Clicked) */}
                      {doc.status === 'DETECTED' && (
                         <button 
-                           onClick={() => handleConvertDoc(doc.id, doc.url, doc.name)} // <--- UPDATED THIS LINE
+                           onClick={() => handleConvertDoc(doc.id, doc.url, doc.name)} 
                            className="flex-1 py-3 bg-white text-slate-950 hover:bg-gold-500 hover:text-white text-[9px] font-black uppercase tracking-widest rounded-xl transition-all shadow-[0_5px_20px_rgba(255,255,255,0.2)] flex items-center justify-center gap-2"
                         >
                            <FileCog className="w-4 h-4" /> Convert
@@ -480,8 +517,6 @@ export const AnalysisScreen: React.FC<AnalysisScreenProps> = ({ rfp, config, onB
     </div>
   );
 
-  
-
   return (
     <div className="absolute inset-0 bg-slate-950 text-slate-200 overflow-hidden font-sans">
       
@@ -490,7 +525,6 @@ export const AnalysisScreen: React.FC<AnalysisScreenProps> = ({ rfp, config, onB
       <div className="absolute bottom-[20%] left-[-10%] w-[600px] h-[600px] bg-blue-600/10 blur-[150px] rounded-full pointer-events-none z-0" />
 
       {/* --- MAIN SCROLLABLE AREA --- */}
-      {/* The entire page is now scrollable globally */}
       <div className="h-full w-full overflow-y-auto scrollbar-hide px-8 pt-8 pb-32 relative z-10">
          
         {/* HEADER */}
@@ -514,12 +548,10 @@ export const AnalysisScreen: React.FC<AnalysisScreenProps> = ({ rfp, config, onB
                 <span className="text-2xl font-black text-gold-500 drop-shadow-md">₹{Math.round(liveCalculations.finalTotal).toLocaleString()}</span>
              </div>
              
-             {/* Unclicked style (Share) */}
              <button onClick={handleShare} className="bg-slate-800 text-slate-300 border border-slate-700 hover:bg-slate-700 hover:text-white px-5 py-3.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all">
                Share 🔗
              </button>
              
-             {/* Clicked/Active Style (Export PDF) */}
              <button onClick={handleDownloadPDF} className="bg-slate-800 text-slate-300 border border-slate-700 hover:bg-slate-700 hover:text-white px-6 py-3.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all">
                Export PDF
              </button>
@@ -556,13 +588,19 @@ export const AnalysisScreen: React.FC<AnalysisScreenProps> = ({ rfp, config, onB
          </button>
          
         <div className="flex gap-4">
-    <button 
-        onClick={onProceed}
-        className="flex items-center justify-center gap-2 bg-slate-800 text-slate-300 border border-slate-700 hover:bg-slate-700 hover:text-white px-5 py-3.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all"
-    >
-        Proceed to Final Approval <ArrowRight className="w-4 h-4" />
-    </button>
-</div>
+            <button 
+                onClick={() => onProceed({
+                           blankDocs,
+                           liveCalculations,
+                           logisticsParams,
+                           profitMargin,
+                           manualOverrides
+                })}
+                className="flex items-center justify-center gap-2 bg-slate-800 text-slate-300 border border-slate-700 hover:bg-slate-700 hover:text-white px-5 py-3.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all"
+            >
+                Proceed to Final Approval <ArrowRight className="w-4 h-4" />
+            </button>
+        </div>
       </div>
 
       {/* OVERLAY: EDIT MANUAL PRICE */}

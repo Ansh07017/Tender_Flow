@@ -448,7 +448,10 @@ const App: React.FC = () => {
               setCurrentView('frontpage');
               setProcessingStartTime(null);
             }}
-            onProceed={() => setCurrentView('final_recommendation')}
+            onProceed={(data) => {
+              setAnalysisContext(data);
+              setCurrentView('final_recommendation');
+            }}
           />
         ) : null;
 

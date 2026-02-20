@@ -49,6 +49,9 @@ export const DiscoveryScreen: React.FC<DiscoveryScreenProps> = ({
           <h3 className="text-xs font-black uppercase tracking-[0.3em] text-gold-500 flex items-center gap-2">
             Master Qualification
           </h3>
+          <div className="mt-3 inline-block px-2 py-1 bg-blue-500/10 border border-blue-500/30 text-blue-400 rounded-md text-[8px] font-black uppercase tracking-widest">
+            Active Filter: Next 3 Months
+          </div>
         </div>
         
         <div className="flex-grow overflow-y-auto p-6 space-y-8 scrollbar-hide">
