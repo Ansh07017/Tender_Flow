@@ -19,12 +19,23 @@ interface VaultScreenProps {
 }
 
 export const VaultScreen: React.FC<VaultScreenProps> = ({ onBack }) => {
-  const [documents, setDocuments] = useState<VaultItem[]>([
-    { id: 1, cert_name: 'GST Registration (GSTIN)', category: 'FINANCIAL', is_valid: true, expiry_date: 'Lifetime', file_path: 'gst_cert.pdf' },
-    { id: 2, cert_name: 'PAN Card', category: 'FINANCIAL', is_valid: true, expiry_date: 'Lifetime', file_path: 'pan_card.pdf' },
-    { id: 3, cert_name: 'ISO 9001:2015 Certification', category: 'TECHNICAL', is_valid: false, expiry_date: 'Expired', file_path: '' },
-    { id: 4, cert_name: 'Factory License', category: 'LEGAL', is_valid: false, expiry_date: 'Missing', file_path: '' },
-  ]);
+  const [documents, setDocuments] = useState<VaultItem[]>([]);
+
+  React.useEffect(() => {
+    const fetchVaultData = async () => {
+      try {
+        const API_BASE = window.location.hostname === 'localhost' ? 'http://localhost:3001' : '';
+        const res = await fetch(`${API_BASE}/api/compliance-check`);
+        const data = await res.json();
+        if (data.certificates && data.certificates.length > 0) {
+          setDocuments(data.certificates);
+        }
+      } catch (err) {
+        console.error("Failed to load vault data", err);
+      }
+    };
+    fetchVaultData();
+  }, []);
 
   // --- UPLOAD MODAL STATE ---
   const [uploadModal, setUploadModal] = useState<{ isOpen: boolean; docId: number | null; docName: string }>({ isOpen: false, docId: null, docName: '' });

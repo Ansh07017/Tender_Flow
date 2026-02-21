@@ -163,6 +163,52 @@ app.post("/api/convert-pdf", async (req: Request, res: Response) => {
   }
 });
 
+// ============================================================================
+//  REAL-TIME MARKET INTELLIGENCE (Cached)
+// ============================================================================
+let cachedInsights: string[] = [];
+let lastInsightFetchTime = 0;
+
+app.get("/api/market-insights", async (req: Request, res: Response) => {
+  try {
+    const CACHE_TTL = 1000 * 60 * 60; // Cache for 1 Hour to save API costs
+    
+    // Serve from cache if valid
+    if (cachedInsights.length > 0 && (Date.now() - lastInsightFetchTime < CACHE_TTL)) {
+      console.log("[MARKET_INTEL] Serving cached insights.");
+      return res.json({ success: true, insights: cachedInsights });
+    }
+
+    console.log("[MARKET_INTEL] Fetching live market data via AI...");
+    
+    const prompt = "You are a financial commodities analyst. Provide exactly 4 short, distinct sentences (max 20 words each) about the current global market trends for Copper, Aluminum, and PVC resin. Do not use bullet points or numbers. Separate each sentence with a newline character.";
+    
+    // We pass empty context since we just want general market data
+    const aiResponse = await getHelperBotResponse(prompt, null, []); 
+    
+    // Clean and split the AI response into an array
+    const newInsights = aiResponse.split('\n')
+      .map((line: string) => line.replace(/^[\-\*\d\.]+\s*/, '').trim()) // Strip accidental bullets
+      .filter((line: string) => line.length > 15);
+    
+    if (newInsights.length >= 2) {
+       cachedInsights = newInsights;
+       lastInsightFetchTime = Date.now();
+    }
+
+    res.json({ 
+      success: true, 
+      insights: cachedInsights.length > 0 ? cachedInsights : ["Market intelligence uplink established..."] 
+    });
+  } catch (err: any) {
+    console.error("🔥 [MARKET_INTEL] Fetch Error:", err.message);
+    res.json({ 
+      success: false, 
+      insights: cachedInsights.length > 0 ? cachedInsights : ["Global market telemetry temporarily offline."] 
+    });
+  }
+});
+
 app.post("/api/discover", async (req: Request, res: Response) => {
   try {
     const { portal, category, filters, inventory } = req.body;
@@ -239,7 +285,7 @@ app.get('/api/vault/download/:filename', (req, res) => {
 app.get("/api/compliance-check", async (req: Request, res: Response) => {
   try {
     const profile = await pool.query("SELECT * FROM company_profile LIMIT 1");
-    const certs = await pool.query("SELECT cert_name, is_valid, expiry_date FROM compliance_vault");
+    const certs = await pool.query("SELECT id, cert_name, category, is_valid, TO_CHAR(expiry_date, 'YYYY-MM-DD') as expiry_date, file_path FROM compliance_vault ORDER BY id ASC");
     
     res.json({
       profile: profile.rows[0],

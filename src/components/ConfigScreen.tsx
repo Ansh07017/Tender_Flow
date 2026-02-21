@@ -27,9 +27,25 @@ export const ConfigScreen: React.FC<ConfigScreenProps> = ({
     setCompanyDetails(prev => ({ ...prev, [name]: value }));
   };
 
-  const handleSave = () => {
+const handleSave = async () => {
     setConfig(prev => ({ ...prev, companyDetails }));
-    alert('System Configuration Updated');
+    try {
+      const API_BASE = window.location.hostname === 'localhost' ? 'http://localhost:3001' : '';
+      const res = await fetch(`${API_BASE}/api/update-config`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ password: 'TF-Admin-2026', companyDetails })
+      });
+      const data = await res.json();
+      if (data.success) {
+        alert('System Configuration Synced to PostgreSQL Database ✅');
+      } else {
+        alert('Failed to sync to DB');
+      }
+    } catch (err) {
+      console.error(err);
+      alert('Network error while saving configuration.');
+    }
   };
 
   const addAuthority = () => {

@@ -1,6 +1,6 @@
 import * as React from 'react';
 import { useState } from 'react';
-import { Microscope,SearchX } from 'lucide-react';
+import {SearchX } from 'lucide-react';
 import { SKU, Tender, DiscoveryFilters } from '../../types';
 
 interface DiscoveryScreenProps {
@@ -18,14 +18,13 @@ export const DiscoveryScreen: React.FC<DiscoveryScreenProps> = ({
   onSearch, 
   onProcessDiscovery,
   hasSearched,
-  onOpenAdvanced,
   isScanning,
 }) => {
   const [category, setCategory] = useState('');
   const [manualAvgKms, setManualAvgKms] = useState(400);
   const [manualRatePerKm, setManualRatePerKm] = useState(55);
-  const [allowEMD, setAllowEMD] = useState(false);
-  const [minMatchThreshold, setMinMatchThreshold] = useState(20);
+  const [allowEMD] = useState(false);
+  const [minMatchThreshold] = useState(20);
   const [deliveryType, setDeliveryType] = useState<'Pan India' | 'Intra State' | 'Zonal'>('Pan India');
 
   const handleSearchTrigger = () => {
@@ -127,15 +126,6 @@ export const DiscoveryScreen: React.FC<DiscoveryScreenProps> = ({
             >
               {isScanning ? 'Scraping GeM...' : 'Run Discovery'}
             </button>
-
-            <button 
-      onClick={onOpenAdvanced}
-      disabled={isScanning}
-      className="bg-white text-slate-950 px-6 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all shadow-[0_0_20px_rgba(212,175,55,0.3)] hover:scale-105"
-    >
-      <Microscope className="w-4 h-4" />
-      Advanced Search
-    </button>
 
           </div>
         </div>

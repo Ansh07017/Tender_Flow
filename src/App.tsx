@@ -328,7 +328,11 @@ const processRfp = async (rfpId: string, override?: Rfp) => {
               const bidId = url.replace(/\/$/, '').split('/').pop(); 
               addRfp({ source: 'URL', content: url, fileName: `GeM_${bidId}` });
             }}
-            onRefreshDiscovery={() => window.location.reload()}
+            onRefreshDiscovery={() => {
+     setHasSearched(false);
+     setIsDiscoveryScanning(true);
+     setTimeout(() => setIsDiscoveryScanning(false), 2000); 
+  }}
           />
         );
 

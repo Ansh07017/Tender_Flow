@@ -251,7 +251,6 @@ useEffect(() => {
         <div>
             <h3 className="text-[13px] font-black text-slate-500 uppercase tracking-widest">Primary Consignee Location</h3>
             <p className="text-[15px] font-bold text-white">
-               {/* P10: Cleans up GeM's ugly bracket security string */}
                {(parsedData.consignee || parsedMetadata.officeName || "Multiple Locations")}
             </p>
           </div>
@@ -461,7 +460,7 @@ useEffect(() => {
             {mandatoryDocs.map((doc: string, i: number) => {
                 const reqDocString = doc.toLowerCase();
                 const inVault = vaultLibrary.some(vaultDoc => {
-                    const vaultKeywords = vaultDoc.toLowerCase().replace(/[^a-z0-9\s]/g, '').split(' ').filter(w => w.length > 3);
+                    const vaultKeywords = vaultDoc.toLowerCase().replace(/[^a-z0-9\s]/g, '').split(' ').filter(w => w.length > 2);
                     return vaultKeywords.some(kw => reqDocString.includes(kw));
                 });
                 
@@ -625,7 +624,7 @@ useEffect(() => {
         </div>
 
         {/* --- DYNAMIC TABS UI --- */}
-        <div className="flex gap-4 mb-8 w-full max-w-lg">
+        <div className="flex justify-center gap-4 mb-8 w-full max-w-2xl mx-auto">
           <button 
               onClick={() => setActiveTab('COMMERCIALS')}
               className={`flex-1 px-4 py-4 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all duration-300 ${activeTab === 'COMMERCIALS' ? 'bg-white text-slate-950 shadow-[0_5px_20px_rgba(255,255,255,0.3)] scale-[1.02]' : 'bg-slate-800 text-slate-300 border border-slate-700 hover:bg-slate-700 hover:text-white'}`}

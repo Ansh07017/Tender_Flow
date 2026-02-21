@@ -139,7 +139,7 @@ export const HelperBot: React.FC<HelperBotProps> = ({ currentRfp }) => {
               <div key={i} className={`flex ${m.sender === 'user' ? 'justify-end' : 'justify-start'}`}>
                 <div className={`max-w-[85%] p-3 rounded-2xl text-xs leading-relaxed ${
                   m.sender === 'user' 
-                    ? 'bg-amber-500 text-black rounded-br-none font-bold border border-amber-400' 
+                    ? 'bg-gold-500 text-slate-950 rounded-br-none font-bold shadow-[0_0_15px_rgba(212,175,55,0.2)]' 
                     : 'bg-slate-800 text-slate-300 rounded-bl-none border border-slate-700'
                 }`}>
                   {m.text}
