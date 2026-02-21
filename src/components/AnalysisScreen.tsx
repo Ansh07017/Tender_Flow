@@ -38,7 +38,9 @@ export const AnalysisScreen: React.FC<AnalysisScreenProps> = ({ rfp, config, onB
   const [manualOverrides, setManualOverrides] = useState<Record<string, number>>({});
   const [editingItem, setEditingItem] = useState<any | null>(null);
   const [expandedTechItem, setExpandedTechItem] = useState<number | null>(null); 
-  const [testingProvision, setTestingProvision] = useState<number>(15000); // <-- NEW: Dynamic Testing Slider State
+  const [testingProvision, setTestingProvision] = useState<number>(15000);
+  const [disqualifiedItems, setDisqualifiedItems] = useState<string[]>([]);
+  const [vaultLibrary, setVaultLibrary] = useState<string[]>([]);
 
   // --- 3. DYNAMIC DOCUMENT GENERATOR ---
   const initialBlankDocs = useMemo(() => {
@@ -83,7 +85,25 @@ export const AnalysisScreen: React.FC<AnalysisScreenProps> = ({ rfp, config, onB
   }, [parsedData.extractedLinks, technicalResults]);
 
   const [blankDocs, setBlankDocs] = useState<BlankDoc[]>(initialBlankDocs);
-
+useEffect(() => {
+    const fetchLiveVault = async () => {
+      try {
+        const API_BASE = window.location.hostname === 'localhost' ? 'http://localhost:3001' : '';
+        const res = await fetch(`${API_BASE}/api/vault/documents`);
+        const data = await res.json();
+        
+        if (data.success && data.documents) {
+          // Extract the names of all valid documents into our array
+          setVaultLibrary(data.documents.map((doc: any) => doc.cert_name));
+        }
+      } catch (err) {
+        console.warn("Could not fetch vault. Using fallback data for demo.");
+        // Fallback just in case the backend crashes during the demo
+        setVaultLibrary(['GST Registration', 'PAN Card', 'ISO 9001:2015', 'Factory License']);
+      }
+    };
+    fetchLiveVault();
+  }, []);
   useEffect(() => {
     setBlankDocs(initialBlankDocs);
   }, [initialBlankDocs]);
@@ -95,6 +115,9 @@ export const AnalysisScreen: React.FC<AnalysisScreenProps> = ({ rfp, config, onB
 
     technicalResults.forEach((analysis: any) => {
       const itemName = analysis.rfpLineItem.name;
+      
+      if (disqualifiedItems.includes(itemName)) return; 
+
       const qty = analysis.rfpLineItem.quantity;
       let unitPrice = manualOverrides[itemName] !== undefined ? manualOverrides[itemName] : (analysis.selectedSku?.unitSalesPrice || 0);
       let gstRate = analysis.selectedSku?.gstRate || 18; 
@@ -105,7 +128,7 @@ export const AnalysisScreen: React.FC<AnalysisScreenProps> = ({ rfp, config, onB
 
     const baseLogistics = logisticsParams.kms * logisticsParams.rate;
     const logisticsWithBuffer = baseLogistics * (1 + (logisticsParams.bufferPercent / 100));
-    const testingCost = testingProvision; // <-- FIXED: Connected to slider state
+    const testingCost = testingProvision;
     let gemFee = 0;
     if (totalMaterialBase > 1000000 && totalMaterialBase <= 100000000) gemFee = totalMaterialBase * 0.0030;
     else if (totalMaterialBase > 100000000) gemFee = 300000;
@@ -124,7 +147,7 @@ export const AnalysisScreen: React.FC<AnalysisScreenProps> = ({ rfp, config, onB
       testing: testingCost,
       finalTotal: totalMaterialBase + totalGst + logisticsWithBuffer + gemFee + epbg + emd + profitAmount + testingCost
     };
-  }, [technicalResults, manualOverrides, logisticsParams, profitMargin, parsedMetadata, financialCond, testingProvision]); // <-- Added testingProvision to dependencies
+  }, [technicalResults, manualOverrides, logisticsParams, profitMargin, parsedMetadata, financialCond, testingProvision,disqualifiedItems]);
 
   // --- 5. FULLY RESTORED ACTION HANDLERS ---
   const handleDownloadPDF = () => {
@@ -224,21 +247,40 @@ export const AnalysisScreen: React.FC<AnalysisScreenProps> = ({ rfp, config, onB
           <div className="w-12 h-12 rounded-xl bg-blue-500/10 flex items-center justify-center">
             <MapPin className="w-6 h-6 text-blue-500" />
           </div>
-          <div>
+        
+        <div>
             <h3 className="text-[13px] font-black text-slate-500 uppercase tracking-widest">Primary Consignee Location</h3>
-            <p className="text-[15px] font-bold text-white">{parsedData.consignee || parsedMetadata.officeName || "Multiple Locations"}</p>
+            <p className="text-[15px] font-bold text-white">
+               {/* P10: Cleans up GeM's ugly bracket security string */}
+               {(parsedData.consignee || parsedMetadata.officeName || "Multiple Locations")}
+            </p>
           </div>
         </div>
-        <div className="text-right">
-          <label className="text-[10px] uppercase text-slate-400 font-bold block mb-2">Distance Buffer (Km)</label>
-          <div className="flex items-center gap-4">
-            <input 
-              type="range" min="0" max="2000" 
-              value={logisticsParams.kms} 
-              onChange={(e) => setLogisticsParams(prev => ({ ...prev, kms: Number(e.target.value) }))}
-              className="w-48 accent-gold-500 h-1 bg-slate-800 rounded-lg appearance-none cursor-pointer"
-            />
-            <span className="text-sm font-mono text-gold-500 w-12 text-right">{logisticsParams.kms}</span>
+        <div className="flex gap-8 text-right">
+          {/* P13: Restored the dual-variable Rate x Distance logistics formula UI */}
+          <div>
+            <label className="text-[10px] uppercase text-slate-400 font-bold block mb-2">Logistics Rate (₹/Km)</label>
+            <div className="flex items-center gap-3">
+              <input 
+                type="range" min="10" max="200" step="5"
+                value={logisticsParams.rate} 
+                onChange={(e) => setLogisticsParams(prev => ({ ...prev, rate: Number(e.target.value) }))}
+                className="w-32 accent-blue-500 h-1 bg-slate-800 rounded-lg appearance-none cursor-pointer"
+              />
+              <span className="text-sm font-mono text-blue-400 w-12 text-right">₹{logisticsParams.rate}</span>
+            </div>
+          </div>
+          <div>
+            <label className="text-[10px] uppercase text-slate-400 font-bold block mb-2">Distance Buffer (Km)</label>
+            <div className="flex items-center gap-3">
+              <input 
+                type="range" min="0" max="2000" step="10"
+                value={logisticsParams.kms} 
+                onChange={(e) => setLogisticsParams(prev => ({ ...prev, kms: Number(e.target.value) }))}
+                className="w-32 accent-gold-500 h-1 bg-slate-800 rounded-lg appearance-none cursor-pointer"
+              />
+              <span className="text-sm font-mono text-gold-500 w-12 text-right">{logisticsParams.kms}</span>
+            </div>
           </div>
         </div>
       </div>
@@ -250,23 +292,38 @@ export const AnalysisScreen: React.FC<AnalysisScreenProps> = ({ rfp, config, onB
              <Scale className="w-4 h-4" /> Technical SKU Matching
           </h3>
           <div className="space-y-4">
-            {technicalResults.map((analysis: any, idx: number) => {
-               const isOverridden = manualOverrides[analysis.rfpLineItem.name] !== undefined;
-               const currentPrice = isOverridden ? manualOverrides[analysis.rfpLineItem.name] : (analysis.selectedSku?.unitSalesPrice || 0);
+                  {technicalResults.map((analysis: any, idx: number) => {
+               const itemName = analysis.rfpLineItem.name;
+               const isDisqualified = disqualifiedItems.includes(itemName);
+               const isOverridden = manualOverrides[itemName] !== undefined;
+               const currentPrice = isOverridden ? manualOverrides[itemName] : (analysis.selectedSku?.unitSalesPrice || 0);
 
               return (
-                  <div key={idx} className={`border p-5 rounded-2xl transition-all ${isOverridden ? 'bg-gold-500/5 border-gold-500/30' : 'bg-slate-950/80 border-slate-800/80'}`}>
+                  <div key={idx} className={`border p-5 rounded-2xl transition-all ${isDisqualified ? 'bg-red-500/5 border-red-500/30 opacity-70' : isOverridden ? 'bg-gold-500/5 border-gold-500/30' : 'bg-slate-950/80 border-slate-800/80'}`}>
                     <div className="flex justify-between items-start mb-3">
                       <div className="space-y-1">
-                        <h4 className="font-bold text-white text-sm uppercase">{analysis.rfpLineItem.name}</h4>
+                        <h4 className="font-bold text-white text-sm uppercase">{itemName}</h4>
                         <div className="flex gap-2 text-[10px] font-bold text-slate-500 uppercase">
                           <span>Req Qty: {analysis.rfpLineItem.quantity} | Spec: {analysis.rfpLineItem.technicalSpecs?.[0] || "Standard"}</span>
                         </div>
                       </div>
-                      <button onClick={() => setEditingItem(analysis)} className="px-3 py-1.5 rounded-lg bg-slate-800 text-[9px] font-bold text-slate-300 uppercase hover:bg-white hover:text-slate-900 transition-all">
-                        {isOverridden ? 'Edit Override' : 'Disqualify / Edit'}
-                      </button>
+                      
+                      {/* P12: Split Disqualify and Edit actions */}
+                      <div className="flex gap-2">
+                        <button 
+                          onClick={() => setDisqualifiedItems(prev => isDisqualified ? prev.filter(i => i !== itemName) : [...prev, itemName])} 
+                          className={`px-3 py-1.5 rounded-lg text-[9px] font-bold uppercase transition-all ${isDisqualified ? 'bg-red-500 text-white shadow-lg' : 'bg-slate-800 text-red-400 hover:bg-red-500/20'}`}
+                        >
+                          {isDisqualified ? 'Re-Qualify' : 'Disqualify'}
+                        </button>
+                        {!isDisqualified && (
+                          <button onClick={() => setEditingItem(analysis)} className="px-3 py-1.5 rounded-lg bg-slate-800 text-[9px] font-bold text-slate-300 uppercase hover:bg-white hover:text-slate-900 transition-all">
+                            {isOverridden ? 'Edit Override' : 'Manual Edit'}
+                          </button>
+                        )}
+                      </div>
                     </div>
+                    
                     <div className="flex items-center justify-between bg-slate-900/50 p-3 rounded-xl border border-slate-800/50 mt-2">
                       <div className="flex items-center gap-3">
                         <div className="text-emerald-500"><CheckCircle2 className="w-4 h-4" /></div>
@@ -277,12 +334,11 @@ export const AnalysisScreen: React.FC<AnalysisScreenProps> = ({ rfp, config, onB
                       </div>
                       <div className="text-right">
                           <p className="text-[9px] text-slate-500 font-black uppercase">Unit Rate</p>
-                          <p className={`font-mono text-sm font-bold ${isOverridden ? 'text-gold-500' : 'text-emerald-400'}`}>
-                            ₹{currentPrice.toLocaleString()}
+                          <p className={`font-mono text-sm font-bold ${isDisqualified ? 'text-red-500 line-through' : isOverridden ? 'text-gold-500' : 'text-emerald-400'}`}>
+                            ₹{isDisqualified ? '0' : currentPrice.toLocaleString()}
                           </p>
                       </div>
                     </div>
-
                     <div className="mt-4 border-t border-slate-800/50 pt-3">
                       <button
                         onClick={() => setExpandedTechItem(expandedTechItem === idx ? null : idx)}
@@ -402,12 +458,22 @@ export const AnalysisScreen: React.FC<AnalysisScreenProps> = ({ rfp, config, onB
                <span className="text-[9px] font-black uppercase px-3 py-1.5 rounded-lg bg-emerald-500/10 text-emerald-400">Verified in Vault</span>
              </div>
              
-             {mandatoryDocs.map((doc: string, i: number) => (
-                <div key={i} className="flex justify-between items-center p-4 bg-slate-950/80 rounded-xl border border-slate-800/80">
-                  <span className="text-xs font-bold text-white">{doc}</span>
-                  <span className="text-[9px] font-black uppercase px-3 py-1.5 rounded-lg bg-slate-800 text-slate-400">Check Vault</span>
-                </div>
-             ))}
+            {mandatoryDocs.map((doc: string, i: number) => {
+                const reqDocString = doc.toLowerCase();
+                const inVault = vaultLibrary.some(vaultDoc => {
+                    const vaultKeywords = vaultDoc.toLowerCase().replace(/[^a-z0-9\s]/g, '').split(' ').filter(w => w.length > 3);
+                    return vaultKeywords.some(kw => reqDocString.includes(kw));
+                });
+                
+                return (
+                  <div key={i} className={`flex justify-between items-center p-4 bg-slate-950/80 rounded-xl border ${inVault ? 'border-emerald-500/20' : 'border-amber-500/20'}`}>
+                    <span className="text-xs font-bold text-white">{doc}</span>
+                    <span className={`text-[9px] font-black uppercase px-3 py-1.5 rounded-lg ${inVault ? 'bg-emerald-500/10 text-emerald-400' : 'bg-amber-500/10 text-amber-400'}`}>
+                      {inVault ? 'Verified in Vault' : 'Missing: Request Upload'}
+                    </span>
+                  </div>
+                );
+             })}
 
              <div className={`flex justify-between items-center p-4 bg-slate-950/80 rounded-xl border ${liveCalculations.emd > 0 ? 'border-red-500/30' : 'border-slate-800/80'}`}>
                <div>

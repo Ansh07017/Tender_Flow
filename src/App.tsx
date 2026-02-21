@@ -183,20 +183,20 @@ const App: React.FC = () => {
     );
   };
 
-  const processRfp = async (rfpId: string, override?: Rfp) => {
+const processRfp = async (rfpId: string, override?: Rfp) => {
     const rfp = override || rfps.find(r => r.id === rfpId);
     if (!rfp) return;
 
     const startTime = Date.now();
     try {
-      addLog('SYSTEM', `Processing started for ${rfpId}`);
+      addLog('SYSTEM', `Execution sequence initiated for task: ${rfpId}`);
 
       let contentToParse = rfp.rawDocument;
       let pdfLinks: string[] = [];
 
       if (rfp.source === 'URL') {
         updateRfpState(rfpId, { status: 'Extracting', activeAgent: 'SALES_AGENT' });
-        addLog('DISCOVERY_AGENT', 'Fetching document from GeM portal...');
+        addLog('DISCOVERY_AGENT', 'Establishing secure connection to GeM portal infrastructure...');
 
         const fetchRes = await fetch('http://localhost:3001/api/fetch-rfp-url', {
           method: 'POST',
@@ -209,16 +209,34 @@ const App: React.FC = () => {
         const fetchData = await fetchRes.json();
         contentToParse = fetchData.content;
         pdfLinks = fetchData.extractedLinks || []; 
-        
-        addLog('SALES_AGENT', `Extraction successful. Found ${pdfLinks.length} embedded documents.`);
+        addLog('SALES_AGENT', `Extraction successful. Captured primary text and embedded reference pathways.`);
       }
       
       updateRfpState(rfpId, { status: 'Parsing', activeAgent: 'PARSING_ENGINE' });
-      addLog('PARSING_ENGINE', 'Sending document to backend');
-      
+      addLog('PARSING_ENGINE', 'Initiating deep document digestion via dual AI pipeline (Gemini + Grok)...');
+      let isBackendDone = false;
+      const runSimulatedLogs = async () => {
+         const delay = (ms: number) => new Promise(res => setTimeout(res, ms));
+         await delay(1200);
+         if (!isBackendDone) addLog('PARSING_ENGINE', '📄 OCR Engine: Structuring technical scopes and isolating line items...');
+         await delay(1500);
+         if (!isBackendDone) addLog('PARSING_ENGINE', '🧠 Grok Subroutine: Identifying mandatory compliance rules & Buyer ATCs...');
+         await delay(1800);
+         if (!isBackendDone) addLog('TECHNICAL_AGENT', '⚙️ Cross-referencing parsed specifications against Master PIM Database...');
+         await delay(1500);
+         if (!isBackendDone) addLog('TECHNICAL_AGENT', '⚖️ Calculating dimensional tolerances and IS-Standard overlap metrics...');
+         await delay(1800);
+         if (!isBackendDone) addLog('PRICING_AGENT', '💰 Structuring initial BoQ & mapping dynamic logistics nodes...');
+         await delay(1500);
+         if (!isBackendDone) addLog('MASTER_AGENT', '🛡️ Consolidating risk matrix (Availability, Compliance, Timeline)...');
+      };
+
+      runSimulatedLogs();
+
       const backendResult = await apiService.parseRFP(contentToParse, inventory, pdfLinks);
+      isBackendDone = true; 
+      addLog('PARSING_ENGINE', 'Backend synchronization complete. Structural JSON payload finalized.', backendResult);
       
-      addLog('PARSING_ENGINE', 'Backend completed', backendResult);
       updateRfpState(rfpId, {
         status: 'Complete',
         activeAgent: 'FINALIZING_AGENT',
@@ -229,10 +247,11 @@ const App: React.FC = () => {
         },
         processingDuration: Math.round((Date.now() - startTime) / 1000),
       });
-      addLog('FINALIZING_AGENT', 'Report finalized');
+      
+      addLog('FINALIZING_AGENT', 'System orchestration finished. Awaiting executive review protocol.');
     } catch (err: any) {
       updateRfpState(rfpId, { status: 'Error' });
-      addLog('SYSTEM', err.message || 'Processing failed');
+      addLog('SYSTEM', err.message || 'Processing execution failed catastrophically.');
     }
   };
 

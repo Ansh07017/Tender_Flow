@@ -48,7 +48,7 @@ async function extractTextFromBuffer(buffer: ArrayBuffer): Promise<{ fullText: s
     let pageText = textContent.items
       .map((item: any) => item.str)
       .join(" ");
-    pageText = pageText.replace(/\*{7,}/g, (match) => "Location not visible due to security reasons");
+    pageText = pageText.replace(/\*{7,}/g, (match) => "(Exact Location not visible due to security reasons)");
     pageText = pageText.replace(/\*{5,}([A-Z\s,]+)/g, "$1");
     fullText += pageText + "\n";
 
@@ -198,15 +198,31 @@ app.post("/api/discover", async (req: Request, res: Response) => {
   }
 });
 
+app.get("/api/vault/documents", async (req: Request, res: Response) => {
+  try {
+    const result = await pool.query(`
+      SELECT cert_name, category, is_valid, expiry_date 
+      FROM compliance_vault 
+      WHERE is_valid = true
+    `);
+    
+    res.json({ success: true, documents: result.rows });
+  } catch (err: any) {
+    console.error("🔥 [VAULT] Fetch Error:", err.message);
+    res.status(500).json({ success: false, error: "Failed to fetch vault documents" });
+  }
+});
 app.post('/api/vault/upload', upload.single('file'), async (req: Request, res: Response) => {
     try {
-        const { docId } = req.body;
+        const { docId, expiryDate } = req.body;
         const file = req.file;
         if (!file) return res.status(400).json({ error: "No file uploaded" });
 
+        const finalExpiry = expiryDate === 'Lifetime' ? '2099-12-31' : expiryDate;
+
         await pool.query(
             "UPDATE compliance_vault SET file_path = $1, is_valid = true, expiry_date = $2 WHERE id = $3",
-            [file.path, '2026-12-31', docId]
+            [file.path, finalExpiry, docId]
         );
         res.json({ success: true, filePath: file.path });
     } catch (err) {

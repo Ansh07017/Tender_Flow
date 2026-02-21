@@ -1,129 +1,118 @@
 import * as React from 'react';
-import { useState} from 'react';
-import { SKU, TruckType } from '../../types';
+import { useState, useEffect } from 'react';
+import { SKU, AddItemModalProps } from '../../types';
+import { X, Save } from 'lucide-react';
 
-interface AddItemModalProps {
-  isOpen: boolean;
-  initialData?: SKU;
-  onClose: () => void;
-  onSave: (newItem: SKU) => void;
-}
+export const AddItemModal: React.FC<AddItemModalProps> = ({ onClose, onSave, existingItem }) => {
+  // Pre-fill the form if existingItem is passed, otherwise create blank defaults
+  const [formData, setFormData] = useState<Partial<SKU>>({
+    skuId: `SKU-${Date.now().toString().slice(-6)}`,
+    productName: '',
+    productCategory: 'Wires & Cables',
+    availableQuantity: 0,
+    unitSalesPrice: 0,
+    costPrice: 0,
+    gstRate: 18,
+    warehouseLocation: "Jalandhar, PB",
+    warehouseCode: "JAL-01",
+    warehouseLat: 31.3260,
+    warehouseLon: 75.5762,
+    truckType: 'LCV',
+    leadTime: 3,
+    bulkSalesPrice: 0,
+    minMarginPercent: 10,
+    isActive: true,
+    isCustomMadePossible: false,
+    isComplianceReady: true,
+    specification: {},
+    productSubCategory: 'General',
+    oemBrand: 'Internal'
+  });
 
-const initialFormState: Omit<SKU, 'matchPercentage'> = {
-  skuId: '', productName: '', productCategory: '', productSubCategory: '', oemBrand: '',
-  specification: { Type: '', Motor: '' },
-  availableQuantity: 0, warehouseLocation: '', warehouseCode: '',
-  warehouseLat: 0, warehouseLon: 0, truckType: 'LCV',
-  leadTime: 0, costPrice: 0, unitSalesPrice: 0, bulkSalesPrice: 0,
-  gstRate: 0, brokerage: 0, minMarginPercent: 0,
-  isActive: true, isCustomMadePossible: false, isComplianceReady: false,
-};
-
-const InputField: React.FC<{label: string, name: string, value: string | number, onChange: (e: React.ChangeEvent<HTMLInputElement>) => void, type?: string, required?: boolean, step?: string}> = 
-({label, name, value, onChange, type = 'text', required = false, step = "any"}) => (
-    <div>
-        <label htmlFor={name} className="block text-sm font-medium text-ink-500">{label}</label>
-        <input type={type} name={name} id={name} value={value} onChange={onChange} required={required} step={step} className="mt-1 block w-full px-3 py-2 bg-base-100 border border-base-300 rounded-md shadow-sm placeholder-ink-400 focus:outline-none focus:ring-accent-700 focus:border-accent-700 sm:text-sm" />
-    </div>
-);
-
-const SelectField: React.FC<{label: string, name: string, value: string, onChange: (e: React.ChangeEvent<HTMLSelectElement>) => void, children: React.ReactNode}> = 
-({ label, name, value, onChange, children }) => (
-    <div>
-        <label htmlFor={name} className="block text-sm font-medium text-ink-500">{label}</label>
-        <select id={name} name={name} value={value} onChange={onChange} className="mt-1 block w-full px-3 py-2 bg-base-100 border border-base-300 rounded-md shadow-sm focus:outline-none focus:ring-accent-700 focus:border-accent-700 sm:text-sm">
-            {children}
-        </select>
-    </div>
-);
-
-const CheckboxField: React.FC<{label: string, name: string, checked: boolean, onChange: (e: React.ChangeEvent<HTMLInputElement>) => void}> = ({ label, name, checked, onChange }) => (
-    <div className="flex items-center">
-        <input id={name} name={name} type="checkbox" checked={checked} onChange={onChange} className="h-4 w-4 text-accent-700 bg-base-100 border-base-300 rounded focus:ring-accent-700" />
-        <label htmlFor={name} className="ml-2 block text-sm text-ink-700">{label}</label>
-    </div>
-);
-
-export const AddItemModal: React.FC<AddItemModalProps> = ({ isOpen, onClose, onSave }) => {
-  const [formState, setFormState] = useState(initialFormState);
-
-  if (!isOpen) return null;
+  // If editing, load the existing item data into the form
+  useEffect(() => {
+    if (existingItem) {
+      setFormData(existingItem);
+    }
+  }, [existingItem]);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
-    const { name, value, type } = e.target;
-    const isCheckbox = type === 'checkbox';
-    const checked = isCheckbox ? (e.target as HTMLInputElement).checked : false;
-
-    const val = isCheckbox ? checked : (type === 'number' ? parseFloat(value) || 0 : value);
-    setFormState(prev => ({...prev, [name]: val}));
-  };
-
-  const handleSpecChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
-    setFormState(prev => ({...prev, specification: {...prev.specification, [name]: value }}));
+    const isNumber = ['availableQuantity', 'unitSalesPrice', 'costPrice', 'gstRate'].includes(name);
+    setFormData(prev => ({ 
+      ...prev, 
+      [name]: isNumber ? Number(value) : value 
+    }));
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    onSave(formState);
-    setFormState(initialFormState);
+  const handleSave = () => {
+    if (!formData.skuId || !formData.productName) {
+      alert("SKU ID and Product Name are required.");
+      return;
+    }
+    // Cast to complete SKU type before passing up
+    onSave(formData as SKU);
   };
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-70 overflow-y-auto h-full w-full z-20" onClick={onClose}>
-      <div className="relative top-10 mx-auto p-5 border border-base-300 w-full max-w-4xl shadow-lg rounded-md bg-base-200" onClick={e => e.stopPropagation()}>
-        <form onSubmit={handleSubmit}>
-          <h3 className="text-lg font-medium leading-6 text-ink-700 mb-4">Add New Inventory Item</h3>
-          
-          <div className="space-y-4 p-4 rounded-md">
-            <fieldset className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-5 gap-4">
-              <legend className="font-medium text-ink-700 text-sm sr-only">Core Identification</legend>
-              <InputField label="SKU ID" name="skuId" value={formState.skuId} onChange={handleChange} required />
-              <InputField label="Product Name" name="productName" value={formState.productName} onChange={handleChange} required />
-              <InputField label="Product Category" name="productCategory" value={formState.productCategory} onChange={handleChange} />
-              <InputField label="Product Sub-Category" name="productSubCategory" value={formState.productSubCategory} onChange={handleChange} />
-              <InputField label="OEM / Brand" name="oemBrand" value={formState.oemBrand} onChange={handleChange} />
-            </fieldset>
+    <div className="fixed inset-0 z-[100] bg-slate-950/90 backdrop-blur-xl flex items-center justify-center p-8">
+      <div className="bg-slate-900 border border-slate-800 rounded-3xl p-8 max-w-2xl w-full shadow-2xl animate-in fade-in zoom-in-95">
+        <div className="flex justify-between items-center mb-6">
+          <h2 className="text-xl font-black text-white uppercase tracking-tight">
+            {existingItem ? 'Edit Existing SKU' : 'Add New SKU'}
+          </h2>
+          <button onClick={onClose} className="text-slate-500 hover:text-white transition-colors">
+            <X className="w-6 h-6" />
+          </button>
+        </div>
 
-            <fieldset className="grid grid-cols-1 md:grid-cols-2 gap-4">
-               <legend className="font-medium text-ink-700 text-sm sr-only">Specifications</legend>
-               <InputField label="Specification (Type)" name="Type" value={formState.specification.Type || ''} onChange={handleSpecChange} />
-               <InputField label="Specification (Motor)" name="Motor" value={formState.specification.Motor || ''} onChange={handleSpecChange} />
-            </fieldset>
-
-            <fieldset className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-5 gap-4">
-              <legend className="font-medium text-ink-700 text-sm sr-only">Inventory & Logistics</legend>
-              <InputField label="Available Quantity" name="availableQuantity" value={formState.availableQuantity} onChange={handleChange} type="number" required />
-              <InputField label="Warehouse Location" name="warehouseLocation" value={formState.warehouseLocation} onChange={handleChange} />
-              <InputField label="Warehouse Lat" name="warehouseLat" value={formState.warehouseLat} onChange={handleChange} type="number" step="0.0001"/>
-              <InputField label="Warehouse Lon" name="warehouseLon" value={formState.warehouseLon} onChange={handleChange} type="number" step="0.0001"/>
-              <SelectField label="Truck Type" name="truckType" value={formState.truckType} onChange={handleChange}>
-                  {(['MINI_TRUCK', 'LCV', 'MEDIUM_TRUCK', 'HEAVY_TRUCK'] as TruckType[]).map(t => <option key={t} value={t}>{t}</option>)}
-              </SelectField>
-            </fieldset>
-            
-            <fieldset className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-5 gap-4">
-                <legend className="font-medium text-ink-700 text-sm sr-only">Pricing & Finance</legend>
-                <InputField label="Cost Price (INR)" name="costPrice" value={formState.costPrice} onChange={handleChange} type="number" required />
-                <InputField label="Unit Sales Price (INR)" name="unitSalesPrice" value={formState.unitSalesPrice} onChange={handleChange} type="number" required />
-                <InputField label="Bulk Sales Price (INR)" name="bulkSalesPrice" value={formState.bulkSalesPrice} onChange={handleChange} type="number" />
-                <InputField label="GST Rate (%)" name="gstRate" value={formState.gstRate} onChange={handleChange} type="number" required />
-                <InputField label="Min. Margin (%)" name="minMarginPercent" value={formState.minMarginPercent} onChange={handleChange} type="number" required />
-            </fieldset>
-
-            <fieldset className="flex items-center gap-6 pt-2">
-                 <legend className="font-medium text-ink-700 text-sm sr-only">System Flags</legend>
-                 <CheckboxField label="Is Active" name="isActive" checked={formState.isActive} onChange={handleChange} />
-                 <CheckboxField label="Custom-made possible" name="isCustomMadePossible" checked={formState.isCustomMadePossible} onChange={handleChange} />
-                 <CheckboxField label="Compliance Ready" name="isComplianceReady" checked={formState.isComplianceReady} onChange={handleChange} />
-            </fieldset>
+        <div className="grid grid-cols-2 gap-4 mb-8">
+          <div className="col-span-2 md:col-span-1">
+            <label className="text-[10px] font-black uppercase tracking-widest text-slate-500 mb-2 block">SKU ID</label>
+            <input 
+              type="text" name="skuId" value={formData.skuId} onChange={handleChange}
+              disabled={!!existingItem} // Prevent editing SKU ID if it already exists
+              className="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-xs text-white outline-none focus:border-blue-500 disabled:opacity-50"
+            />
           </div>
-          
-          <div className="pt-6 flex justify-end gap-2">
-            <button type="button" onClick={onClose} className="px-4 py-2 bg-base-300 text-ink-700 rounded-md hover:bg-opacity-80 font-semibold">Cancel</button>
-            <button type="submit" className="px-4 py-2 bg-accent-700 text-white rounded-md hover:bg-opacity-90 font-semibold">Save Item</button>
+          <div className="col-span-2 md:col-span-1">
+            <label className="text-[10px] font-black uppercase tracking-widest text-slate-500 mb-2 block">Category</label>
+            <input 
+              type="text" name="productCategory" value={formData.productCategory} onChange={handleChange}
+              className="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-xs text-white outline-none focus:border-blue-500"
+            />
           </div>
-        </form>
+          <div className="col-span-2">
+            <label className="text-[10px] font-black uppercase tracking-widest text-slate-500 mb-2 block">Product Name</label>
+            <input 
+              type="text" name="productName" value={formData.productName} onChange={handleChange}
+              className="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-xs text-white outline-none focus:border-blue-500"
+            />
+          </div>
+          <div>
+            <label className="text-[10px] font-black uppercase tracking-widest text-slate-500 mb-2 block">Stock Qty</label>
+            <input 
+              type="number" name="availableQuantity" value={formData.availableQuantity} onChange={handleChange}
+              className="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-xs text-white outline-none focus:border-blue-500"
+            />
+          </div>
+          <div>
+            <label className="text-[10px] font-black uppercase tracking-widest text-slate-500 mb-2 block">Unit Sales Price (₹)</label>
+            <input 
+              type="number" name="unitSalesPrice" value={formData.unitSalesPrice} onChange={handleChange}
+              className="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-xs text-white outline-none focus:border-emerald-500"
+            />
+          </div>
+        </div>
+
+        <div className="flex gap-4">
+          <button onClick={onClose} className="flex-1 py-3 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all">
+            Cancel
+          </button>
+          <button onClick={handleSave} className="flex-1 py-3 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-[10px] font-black uppercase tracking-widest transition-all shadow-lg shadow-blue-900/20 flex items-center justify-center gap-2">
+            <Save className="w-4 h-4" /> Save SKU Data
+          </button>
+        </div>
       </div>
     </div>
   );

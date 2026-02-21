@@ -1,7 +1,8 @@
 import * as React from 'react';
 import { useState, useMemo, useRef } from 'react';
-import { SKU } from '../../types';
+import { SKU,AddItemModalProps } from '../../types';
 import { AddItemModal } from './AddItemModal';
+import { Trash2, FileSpreadsheet, Plus, Upload, Search } from 'lucide-react';
 
 interface StoreScreenProps {
   inventory: SKU[];
@@ -26,171 +27,189 @@ export const StoreScreen: React.FC<StoreScreenProps> = ({ inventory, setInventor
 
   // --- Handlers ---
   const handleOpenAdd = () => {
-    setEditingItem(undefined); // Fresh state for new items
+    setEditingItem(undefined); 
     setIsModalOpen(true);
   };
 
   const handleOpenEdit = (item: SKU) => {
-    setEditingItem(item); // Load existing row data into state
+    setEditingItem(item); 
     setIsModalOpen(true);
   };
 
   const handleSaveItem = (item: SKU) => {
     setInventory(prev => {
       const exists = prev.find(i => i.skuId === item.skuId);
-      if (exists) {
-        // Update only the specific columns that changed
-        return prev.map(i => i.skuId === item.skuId ? item : i);
-      }
-      return [...prev, item];
+      if (exists) return prev.map(i => i.skuId === item.skuId ? item : i);
+      return [item, ...prev];
     });
     setIsModalOpen(false);
   };
 
+  const handleDeleteAll = () => {
+    const confirm = window.confirm("⚠️ WARNING: This will permanently delete your entire Master Inventory. Are you absolutely sure?");
+    if (confirm) {
+      setInventory([]);
+      alert("Inventory has been completely cleared.");
+    }
+  };
+
+  // --- CSV Engine ---
+  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const text = event.target?.result as string;
+      if (!text) return;
+
+      const lines = text.split('\n').filter(l => l.trim() !== '');
+      if (lines.length < 2) return alert("Invalid CSV format. Need headers and data.");
+
+      const newSkus: SKU[] = lines.slice(1).map(line => {
+        const values = line.split(',').map(v => v.trim());
+        const price = parseFloat(values[4]) || 0;
+        
+        return {
+          skuId: values[0] || `SKU-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
+          productName: values[1] || 'Imported Product',
+          productCategory: values[2] || 'Imported Category',
+          productSubCategory: 'General',
+          oemBrand: 'Internal',
+          specification: {},
+          availableQuantity: parseInt(values[3]) || 0,
+          warehouseLocation: "Jalandhar, PB",
+          warehouseCode: "JAL-01",
+          warehouseLat: 31.3260,
+          warehouseLon: 75.5762,
+          truckType: 'LCV',
+          leadTime: 3,
+          costPrice: price * 0.8,
+          unitSalesPrice: price,
+          bulkSalesPrice: price * 0.9,
+          gstRate: 18,
+          minMarginPercent: 10,
+          isActive: true,
+          isCustomMadePossible: false,
+          isComplianceReady: true,
+        };
+      });
+
+      setInventory(prev => [...newSkus, ...prev]);
+      alert(`Successfully imported ${newSkus.length} new SKUs from CSV!`);
+      if (fileInputRef.current) fileInputRef.current.value = ''; // Reset input
+    };
+    reader.readAsText(file);
+  };
+
   return (
-    /* FIXED HEIGHT CONTAINER: Prevents page-level scroll, forces internal scroll */
-    <div className="h-[calc(100vh-140px)] w-full flex flex-col bg-slate-950 text-slate-200 font-sans relative overflow-hidden">
-      <div className="absolute top-0 right-0 w-[500px] h-[500px] bg-gold-500/5 blur-[120px] rounded-full pointer-events-none" />
+    <div className={`flex flex-col bg-slate-900/40 border border-slate-800 rounded-3xl backdrop-blur-xl shadow-2xl overflow-hidden transition-all duration-500 ease-in-out ${isExpanded ? 'fixed inset-4 z-50' : 'h-[600px] w-full'}`}>
       
-      {/* MODAL PLACEMENT: Ensure it is lower or relative to the viewport. 
-        Note: The actual vertical offset should be managed within AddItemModal's wrapper. 
-      */}
-      <AddItemModal 
-        isOpen={isModalOpen} 
-        onClose={() => setIsModalOpen(false)} 
-        onSave={handleSaveItem} 
-        initialData={editingItem} 
-      />
-      
-      <input type="file" accept=".csv" ref={fileInputRef} className="hidden" />
-
-      {/* HEADER SECTION: Fills full width */}
-      <div className="shrink-0 bg-slate-900/40 border border-slate-800 rounded-3xl p-6 flex items-center justify-between backdrop-blur-xl mb-6">
-        <div className="space-y-1">
-          <h1 className="text-3xl font-black italic tracking-tighter text-white uppercase italic">
-            Store <span className="text-gold-500">Inventory</span>
-          </h1>
-          <p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest leading-none">
-            Authorized Master Logistics Control
-          </p>
+      {/* HEADER */}
+      <div className="shrink-0 p-6 border-b border-slate-800 flex justify-between items-center bg-slate-900/60">
+        <div>
+          <h2 className="text-xl font-black text-white flex items-center gap-3 tracking-tight">
+            Master Inventory
+            <span className="px-2.5 py-1 bg-blue-500/10 text-blue-400 text-[10px] uppercase tracking-widest rounded-md border border-blue-500/20">
+              Live DB
+            </span>
+          </h2>
+          <p className="text-xs text-slate-400 mt-1">Manage SKUs, Pricing, and Stock Availability</p>
         </div>
 
-        <div className="flex flex-wrap gap-3">
-          <input 
-            type="text" 
-            placeholder="Filter SKUs..." 
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="bg-slate-900/50 border border-slate-700 rounded-xl px-4 py-2 text-sm focus:border-gold-500 outline-none w-64 transition-all"
-          />
-          <button 
-            onClick={() => setIsExpanded(!isExpanded)}
-            className="bg-slate-800 hover:bg-slate-700 text-white px-5 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest border border-slate-700 transition-all"
-          >
-            {isExpanded ? 'Show Basic' : 'Show Detailed'}
-          </button>
-          <button 
-            onClick={handleOpenAdd}
-            className="bg-white text-slate-950 px-5 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all shadow-[0_0_20px_rgba(212,175,55,0.3)]"
-          >
-            + Add SKU
-          </button>
-        </div>
-      </div>
-
-      {/* SCROLLABLE AREA: flex-grow and overflow-auto ensures the table 
-        scrolls vertically within the frame 
-      */}
-      <div className="flex-grow bg-slate-900/40 border border-slate-800 rounded-3xl overflow-hidden backdrop-blur-xl flex flex-col">
-        <div className="overflow-x-auto overflow-y-auto flex-grow scrollbar-hide">
-          <table className="w-full text-left border-collapse min-w-[1000px]">
-            <thead className="sticky top-0 bg-slate-900 z-10 border-b border-slate-800">
-              <tr>
-                {/* 8 Core Columns */}
-                <th className="px-6 py-4 text-[10px] font-black uppercase text-slate-500 tracking-widest">Master ID</th>
-                <th className="px-6 py-4 text-[10px] font-black uppercase text-slate-500 tracking-widest">Description</th>
-                <th className="px-6 py-4 text-[10px] font-black uppercase text-slate-500 tracking-widest">Category</th>
-                <th className="px-6 py-4 text-[10px] font-black uppercase text-slate-500 tracking-widest text-center">Qty</th>
-                <th className="px-6 py-4 text-[10px] font-black uppercase text-slate-500 tracking-widest">OEM Brand</th>
-                <th className="px-6 py-4 text-[10px] font-black uppercase text-slate-500 tracking-widest">Warehouse</th>
-                <th className="px-6 py-4 text-[10px] font-black uppercase text-slate-500 tracking-widest text-right">Unit Price</th>
-                <th className="px-6 py-4 text-[10px] font-black uppercase text-slate-500 tracking-widest text-center">Lead Time</th>
-                
-                {/* Detailed View Columns */}
-                {isExpanded && (
-                  <>
-                    <th className="px-6 py-4 text-[10px] font-black uppercase text-slate-500 tracking-widest">Sub-Category</th>
-                    <th className="px-6 py-4 text-[10px] font-black uppercase text-slate-500 tracking-widest">Cost Price</th>
-                    <th className="px-6 py-4 text-[10px] font-black uppercase text-slate-500 tracking-widest text-center">GST %</th>
-                    <th className="px-6 py-4 text-[10px] font-black uppercase text-slate-500 tracking-widest">Truck Type</th>
-                  </>
-                )}
-                <th className="px-6 py-4 text-[10px] font-black uppercase text-slate-500 tracking-widest text-center sticky right-0 bg-slate-900">Actions</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-800/50">
-              {filteredInventory.map((sku) => (
-                <tr key={sku.skuId} className="hover:bg-gold-500/5 transition-colors group">
-                  <td className="px-6 py-4 font-mono text-[10px] text-slate-500 uppercase">{sku.skuId}</td>
-                  <td className="px-6 py-4">
-                    <div className="font-bold text-white group-hover:text-gold-500 transition-colors text-sm">{sku.productName}</div>
-                  </td>
-                  <td className="px-6 py-4">
-                    <span className="text-[10px] px-2 py-1 rounded bg-slate-800 border border-slate-700 text-slate-400 font-bold uppercase">{sku.productCategory}</span>
-                  </td>
-                  <td className="px-6 py-4 text-center">
-                    <div className="flex flex-col items-center">
-                      <div className={`w-1.5 h-1.5 rounded-full mb-1 ${sku.availableQuantity > 10 ? 'bg-emerald-500 shadow-[0_0_8px_#10b981]' : 'bg-red-500'}`} />
-                      <span className="text-sm font-medium text-slate-300">{sku.availableQuantity}</span>
-                    </div>
-                  </td>
-                  <td className="px-6 py-4 text-sm text-slate-400 italic">{sku.oemBrand}</td>
-                  <td className="px-6 py-4 text-[10px] text-slate-500 uppercase tracking-widest font-bold">{sku.warehouseLocation.split(',')[0]}</td>
-                  <td className="px-6 py-4 text-right font-mono text-gold-500 font-bold">{currencyFormatter.format(sku.unitSalesPrice)}</td>
-                  <td className="px-6 py-4 text-center text-sm text-slate-400">{sku.leadTime}d</td>
-                  
-                  {isExpanded && (
-                    <>
-                      <td className="px-6 py-4 text-xs text-slate-500">{sku.productSubCategory}</td>
-                      <td className="px-6 py-4 text-sm text-slate-500 font-mono">{currencyFormatter.format(sku.costPrice)}</td>
-                      <td className="px-6 py-4 text-center text-sm text-slate-500">{sku.gstRate}%</td>
-                      <td className="px-6 py-4 text-[9px] font-black text-blue-400 uppercase">{sku.truckType.replace('_', ' ')}</td>
-                    </>
-                  )}
-                  
-                  <td className="px-6 py-4 sticky right-0 bg-slate-900/80 backdrop-blur-sm group-hover:bg-slate-800 transition-all border-l border-slate-800/50">
-                    <div className="flex justify-center gap-3">
-                      <button 
-                        onClick={() => handleOpenEdit(sku)}
-                        className="text-slate-500 hover:text-gold-500 transition-colors"
-                        title="Edit SKU"
-                      >
-                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" /></svg>
-                      </button>
-                      <button 
-                        onClick={() => setInventory(prev => prev.filter(i => i.skuId !== sku.skuId))}
-                        className="text-slate-500 hover:text-red-500 transition-colors"
-                        title="Delete SKU"
-                      >
-                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
-                      </button>
-                    </div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-
-        {/* FOOTER: Fixed at bottom */}
-        <div className="shrink-0 p-4 border-t border-slate-800 bg-slate-900/60 flex justify-between items-center text-[10px] font-black uppercase tracking-[0.2em] text-slate-600">
-          <div>Total Master Records: {inventory.length}</div>
-          <div className="flex gap-4">
-            <span className="flex items-center gap-1"><span className="w-1.5 h-1.5 rounded-full bg-emerald-500" /> Compliance Active</span>
-            <span className="flex items-center gap-1"><span className="w-1.5 h-1.5 rounded-full bg-gold-500" /> High-Margin Ready</span>
+        <div className="flex items-center gap-3">
+          <div className="relative">
+            <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" />
+            <input 
+              type="text" 
+              placeholder="Search SKUs..." 
+              value={searchTerm}
+              onChange={e => setSearchTerm(e.target.value)}
+              className="pl-9 pr-4 py-2 bg-slate-950 border border-slate-800 rounded-xl text-xs text-white outline-none focus:border-blue-500 transition-colors w-64"
+            />
           </div>
+          
+          <input 
+            type="file" 
+            accept=".csv, .txt" 
+            ref={fileInputRef} 
+            onChange={handleFileUpload} 
+            className="hidden" 
+          />
+          
+          <button onClick={() => fileInputRef.current?.click()} className="flex items-center gap-2 px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all">
+            <FileSpreadsheet className="w-4 h-4 text-emerald-500" /> Import CSV
+          </button>
+
+          <button onClick={handleOpenAdd} className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-[10px] font-black uppercase tracking-widest shadow-lg shadow-blue-900/20 transition-all">
+            <Plus className="w-4 h-4" /> Add Item
+          </button>
+
+          <button onClick={handleDeleteAll} className="flex items-center gap-2 px-4 py-2 bg-red-500/10 border border-red-500/20 hover:bg-red-500 hover:text-white text-red-500 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all">
+            <Trash2 className="w-4 h-4" /> Delete All
+          </button>
+
+          <button onClick={() => setIsExpanded(!isExpanded)} className="p-2 bg-slate-800 hover:bg-slate-700 rounded-xl text-slate-400 hover:text-white transition-colors">
+            {isExpanded ? '↙️' : '↗️'}
+          </button>
         </div>
       </div>
+
+      {/* TABLE BODY */}
+      <div className="flex-grow overflow-auto scrollbar-hide p-6">
+        <table className="w-full text-left border-collapse">
+          <thead>
+            <tr className="border-b border-slate-800 text-[10px] font-black uppercase tracking-widest text-slate-500">
+              <th className="pb-3 pl-4">SKU ID</th>
+              <th className="pb-3">Product Description</th>
+              <th className="pb-3">Category</th>
+              <th className="pb-3 text-right">Available Stock</th>
+              <th className="pb-3 text-right">Unit Price</th>
+              <th className="pb-3 text-center pr-4">Actions</th>
+            </tr>
+          </thead>
+          <tbody className="text-xs">
+            {filteredInventory.map((sku, idx) => (
+              <tr key={idx} className="border-b border-slate-800/50 hover:bg-slate-800/30 transition-colors group">
+                <td className="py-4 pl-4 font-mono text-blue-400 font-bold">{sku.skuId}</td>
+                <td className="py-4 font-medium text-slate-200 pr-4">{sku.productName}</td>
+                <td className="py-4 text-slate-400">{sku.productCategory}</td>
+                <td className="py-4 text-right">
+                  <span className={`px-2 py-1 rounded-md font-bold ${sku.availableQuantity > 0 ? 'bg-emerald-500/10 text-emerald-400' : 'bg-red-500/10 text-red-400'}`}>
+                    {sku.availableQuantity} Units
+                  </span>
+                </td>
+                <td className="py-4 text-right font-mono font-bold text-slate-300">{currencyFormatter.format(sku.unitSalesPrice)}</td>
+                <td className="py-4 pr-4">
+                  <div className="flex justify-center gap-3 opacity-0 group-hover:opacity-100 transition-opacity">
+                    <button onClick={() => handleOpenEdit(sku)} className="text-slate-500 hover:text-blue-400 transition-colors">
+                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" /></svg>
+                    </button>
+                    <button onClick={() => setInventory(prev => prev.filter(i => i.skuId !== sku.skuId))} className="text-slate-500 hover:text-red-500 transition-colors">
+                      <Trash2 className="w-5 h-5" />
+                    </button>
+                  </div>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+
+      {/* FOOTER */}
+      <div className="shrink-0 p-4 border-t border-slate-800 bg-slate-900/60 flex justify-between items-center text-[10px] font-black uppercase tracking-[0.2em] text-slate-600">
+        <div>Total Master Items: <span className="text-white">{filteredInventory.length}</span></div>
+        <div>TenderFlow PIM System Active</div>
+      </div>
+
+      {/* Add/Edit Modal */}
+      {isModalOpen && (
+        <AddItemModal 
+          onClose={() => setIsModalOpen(false)} 
+          onSave={handleSaveItem} 
+          existingItem={editingItem}
+        />
+      )}
     </div>
   );
 };
