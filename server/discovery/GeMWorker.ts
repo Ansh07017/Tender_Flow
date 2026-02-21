@@ -30,7 +30,7 @@ export class GeMWorker {
   async scrape(category: string): Promise<GeMBid[]> {
     const browser = await puppeteer.launch({ 
       headless: false,
-      args: ['--no-sandbox', '--disable-setuid-sandbox', '--window-size=1920,1080', '--disable-blink-features=AutomationControlled']
+      args: ['--no-sandbox', '--disable-setuid-sandbox', '--window-size=1920,1080', '--disable-blink-features=AutomationControlled','--ignore-certificate-errors']
     });
     const page = await browser.newPage();
 
