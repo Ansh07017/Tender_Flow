@@ -2,7 +2,7 @@ import * as React from 'react';
 import { useState, useMemo, useRef } from 'react';
 import { SKU } from '../../types';
 import { AddItemModal } from './AddItemModal';
-import { Trash2, FileSpreadsheet, Plus, Search } from 'lucide-react';
+import { Trash2, FileSpreadsheet, Plus, Search, Maximize2, X } from 'lucide-react';
 
 interface StoreScreenProps {
   inventory: SKU[];
@@ -103,14 +103,15 @@ export const StoreScreen: React.FC<StoreScreenProps> = ({ inventory, setInventor
   };
 
   return (
-    <div className={`flex flex-col bg-slate-900/40 border border-slate-800 rounded-3xl backdrop-blur-xl shadow-2xl overflow-hidden transition-all duration-500 ease-in-out ${isExpanded ? 'fixed inset-4 z-50' : 'h-full w-full'}`}>
+    // P14: Fixed the wrapper so it aggressively covers the whole screen when expanded
+    <div className={`flex flex-col bg-slate-900/40 border border-slate-800 rounded-3xl backdrop-blur-xl shadow-2xl overflow-hidden transition-all duration-500 ease-in-out ${isExpanded ? 'fixed inset-0 z-[999] bg-slate-950 p-8 rounded-none border-none' : 'h-full w-full'}`}>
       
       {/* HEADER */}
-      <div className="shrink-0 p-6 border-b border-slate-800 flex justify-between items-center bg-slate-900/60">
+      <div className={`shrink-0 border-b border-slate-800 flex justify-between items-center bg-slate-900/60 ${isExpanded ? 'p-8 rounded-t-3xl' : 'p-6'}`}>
         <div>
           <h1 className="text-4xl font-black italic tracking-tighter text-white uppercase drop-shadow-md">
             Master<span className="text-gold-500"> Inventory  </span>
-            <span className="px-2.5 py-1 bg-blue-500/10 text-blue-400 text-[10px] uppercase tracking-widest rounded-md border border-blue-500/20">
+            <span className="px-2.5 py-1 bg-blue-500/10 text-blue-400 text-[10px] uppercase tracking-widest rounded-md border border-blue-500/20 ml-2">
               Live DB
             </span>
           </h1>
@@ -145,24 +146,38 @@ export const StoreScreen: React.FC<StoreScreenProps> = ({ inventory, setInventor
             <Plus className="w-4 h-4" /> Add Item
           </button>
 
-          <button onClick={handleDeleteAll} className="flex items-center gap-2 px-4 py-2 bg-red-500/10 border border-red-500/20 hover:bg-red-500 hover:text-white text-red-500 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all">
-            <Trash2 className="w-4 h-4" /> Delete All
-          </button>
-
-          <button onClick={() => setIsExpanded(!isExpanded)} className="p-2 bg-slate-800 hover:bg-slate-700 rounded-xl text-slate-400 hover:text-white transition-colors">
-            {isExpanded ? '↙️' : '↗️'}
+          {/* NEW: Improved Expand Button */}
+          <button 
+            onClick={() => setIsExpanded(!isExpanded)} 
+            className={`flex items-center gap-2 px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${
+              isExpanded 
+                ? 'bg-slate-800 text-slate-400 hover:text-white hover:bg-slate-700' 
+                : 'bg-slate-200 text-slate-900 hover:text-white hover:bg-slate-700'
+            }`}
+          >
+            {isExpanded ? <><X className="w-4 h-4" /> Close Fullscreen</> : <><Maximize2 className="w-4 h-4" /> Expand View</>}
           </button>
         </div>
       </div>
 
       {/* TABLE BODY */}
-      <div className="flex-grow overflow-auto scrollbar-hide p-6">
+      <div className={`flex-grow overflow-auto scrollbar-hide bg-slate-900/40 ${isExpanded ? 'p-8' : 'p-6'}`}>
         <table className="w-full text-left border-collapse">
           <thead>
-            <tr className="border-b border-slate-800 text-[10px] font-black uppercase tracking-widest text-slate-500">
+            <tr className="border-b border-slate-800 text-[10px] font-black uppercase tracking-widest text-slate-300">
               <th className="pb-3 pl-4">SKU ID</th>
               <th className="pb-3">Product Description</th>
               <th className="pb-3">Category</th>
+              
+              {/* DYNAMIC COLUMNS REVEALED ON EXPAND */}
+              {isExpanded && (
+                <>
+                  <th className="pb-3 text-right">Cost Price</th>
+                  <th className="pb-3 text-center">GST Rate</th>
+                  <th className="pb-3 text-center">Min Margin</th>
+                </>
+              )}
+              
               <th className="pb-3 text-right">Available Stock</th>
               <th className="pb-3 text-right">Unit Price</th>
               <th className="pb-3 text-center pr-4">Actions</th>
@@ -174,6 +189,16 @@ export const StoreScreen: React.FC<StoreScreenProps> = ({ inventory, setInventor
                 <td className="py-4 pl-4 font-mono text-blue-400 font-bold">{sku.skuId}</td>
                 <td className="py-4 font-medium text-slate-200 pr-4">{sku.productName}</td>
                 <td className="py-4 text-slate-400">{sku.productCategory}</td>
+                
+                {/* DYNAMIC DATA REVEALED ON EXPAND */}
+                {isExpanded && (
+                  <>
+                    <td className="py-4 text-right font-mono text-slate-400">{currencyFormatter.format(sku.costPrice)}</td>
+                    <td className="py-4 text-center font-mono text-slate-400">{sku.gstRate}%</td>
+                    <td className="py-4 text-center font-mono text-emerald-500">{sku.minMarginPercent}%</td>
+                  </>
+                )}
+
                 <td className="py-4 text-right">
                   <span className={`px-2 py-1 rounded-md font-bold ${sku.availableQuantity > 0 ? 'bg-emerald-500/10 text-emerald-400' : 'bg-red-500/10 text-red-400'}`}>
                     {sku.availableQuantity} Units
@@ -197,9 +222,12 @@ export const StoreScreen: React.FC<StoreScreenProps> = ({ inventory, setInventor
       </div>
 
       {/* FOOTER */}
-      <div className="shrink-0 p-4 border-t border-slate-800 bg-slate-900/60 flex justify-between items-center text-[10px] font-black uppercase tracking-[0.2em] text-slate-600">
+      <div className={`shrink-0 border-t border-slate-800 bg-slate-900/60 flex justify-between items-center text-[10px] font-black uppercase tracking-[0.2em] text-slate-200 ${isExpanded ? 'p-8 rounded-b-3xl' : 'p-4'}`}>
         <div>Total Master Items: <span className="text-white">{filteredInventory.length}</span></div>
         <div>TenderFlow PIM System Active</div>
+        <button onClick={handleDeleteAll} className="flex items-center gap-2 px-4 py-2 bg-red-500/10 border border-red-500/20 hover:bg-red-500 hover:text-white text-red-500 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all">
+            <Trash2 className="w-4 h-4" /> Delete All
+          </button>
       </div>
 
       {/* Add/Edit Modal */}

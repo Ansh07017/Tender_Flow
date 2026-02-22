@@ -4,13 +4,12 @@ import { OAuth2Client } from 'google-auth-library';
 import speakeasy from 'speakeasy';
 import QRCode from 'qrcode';
 import bcrypt from 'bcrypt';
-import nodemailer from 'nodemailer'; // Ensure installed: npm install nodemailer @types/nodemailer
+import nodemailer from 'nodemailer'; 
 
 const client = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
 const SALT_ROUNDS = 10;
 
 // --- EMAIL CONFIGURATION ---
-// Validates that creds exist before attempting to send
 const transporter = nodemailer.createTransport({
   service: 'gmail',
   auth: {
@@ -18,6 +17,9 @@ const transporter = nodemailer.createTransport({
     pass: process.env.EMAIL_PASS 
   }
 });
+
+// Helper to normalize email and prevent case-sensitivity bugs
+const normalizeEmail = (e?: string) => e?.trim().toLowerCase();
 
 // 1. LOGIN
 export const login = async (req: Request, res: Response) => {
@@ -28,7 +30,7 @@ export const login = async (req: Request, res: Response) => {
       audience: process.env.GOOGLE_CLIENT_ID,
     });
     const payload = ticket.getPayload();
-    const email = payload?.email;
+    const email = normalizeEmail(payload?.email); // Normalized
 
     if (!email) return res.status(400).json({ error: "Invalid Google Token" });
 
@@ -43,8 +45,6 @@ export const login = async (req: Request, res: Response) => {
     }
 
     const user = result.rows[0];
-    
-    // Logic: If they have a PIN and 2FA enabled, setup is conceptually complete.
     const isActuallyComplete = user.is_setup_complete || (!!user.pin_hash && user.is_2fa_enabled);
 
     res.json({
@@ -58,17 +58,30 @@ export const login = async (req: Request, res: Response) => {
   }
 };
 
-// 2. SETUP PIN
+// 2. SETUP PIN (FIXED: Silent DB Failure Removed)
 export const setupPin = async (req: Request, res: Response) => {
   const { email, pin } = req.body;
+  const normalizedEmail = normalizeEmail(email);
   const pinStr = String(pin);
+  
   if (!pinStr || pinStr.length !== 6) return res.status(400).json({ error: "Invalid PIN format" });
 
   try {
     const hashedPin = await bcrypt.hash(pinStr, SALT_ROUNDS);
-    await query("UPDATE vault_access SET pin_hash = $1 WHERE recovery_email = $2", [hashedPin, email]);
+    
+    const update = await query(
+      "UPDATE vault_access SET pin_hash = $1 WHERE recovery_email = $2", 
+      [hashedPin, normalizedEmail]
+    );
+    
+    // THE FIX: Actually verify the DB row was updated
+    if (update.rowCount === 0) {
+      return res.status(404).json({ error: "Account not found in database. Cannot save PIN." });
+    }
+    
     res.json({ success: true });
   } catch (err) {
+    console.error("PIN Setup Error:", err);
     res.status(500).json({ error: "Failed to set PIN" });
   }
 };
@@ -76,11 +89,11 @@ export const setupPin = async (req: Request, res: Response) => {
 // 3. VERIFY VAULT ACCESS (PIN & RECOVERY MODES)
 export const verifyVaultAccess = async (req: Request, res: Response) => {
   const { pin, googleToken, mode, email } = req.body;
+  const normalizedEmail = normalizeEmail(email);
 
-  // MODE 1: Standard PIN Access
   if (mode === 'PIN') {
     try {
-      const result = await query("SELECT * FROM vault_access WHERE recovery_email = $1", [email]);
+      const result = await query("SELECT * FROM vault_access WHERE recovery_email = $1", [normalizedEmail]);
       if (result.rows.length === 0) return res.status(404).json({ error: "Account not found." });
 
       const user = result.rows[0];
@@ -99,7 +112,6 @@ export const verifyVaultAccess = async (req: Request, res: Response) => {
     }
   }
 
-  // MODE 2: Recovery via Google Auth (RESTORED)
   if (mode === 'RECOVERY') {
     try {
       const ticket = await client.verifyIdToken({
@@ -108,7 +120,7 @@ export const verifyVaultAccess = async (req: Request, res: Response) => {
       });
       const payload = ticket.getPayload();
       
-      if (payload?.email === email) {
+      if (normalizeEmail(payload?.email) === normalizedEmail) {
         return res.json({ 
           success: true, 
           message: "Identity confirmed via Google. You may now reset your PIN." 
@@ -123,10 +135,10 @@ export const verifyVaultAccess = async (req: Request, res: Response) => {
 
 // 4. SETUP 2FA
 export const setup2FA = async (req: Request, res: Response) => {
-  const { email } = req.body;
+  const normalizedEmail = normalizeEmail(req.body.email);
   try {
-    const secret = speakeasy.generateSecret({ name: `TenderFlow (${email})` });
-    const update = await query("UPDATE vault_access SET two_fa_secret = $1 WHERE recovery_email = $2", [secret.base32, email]);
+    const secret = speakeasy.generateSecret({ name: `TenderFlow (${normalizedEmail})` });
+    const update = await query("UPDATE vault_access SET two_fa_secret = $1 WHERE recovery_email = $2", [secret.base32, normalizedEmail]);
     if (update.rowCount === 0) return res.status(404).json({ error: "Account not found." });
 
     const qrCodeUrl = await QRCode.toDataURL(secret.otpauth_url!);
@@ -138,35 +150,34 @@ export const setup2FA = async (req: Request, res: Response) => {
 
 // 5. CHECK EMAIL
 export const checkEmail = async (req: Request, res: Response) => {
-  const { email } = req.body;
+  const normalizedEmail = normalizeEmail(req.body.email);
   try {
-    const result = await query("SELECT id FROM vault_access WHERE recovery_email = $1", [email]);
+    const result = await query("SELECT id FROM vault_access WHERE recovery_email = $1", [normalizedEmail]);
     res.json({ exists: result.rows.length > 0 });
   } catch (err) {
     res.status(500).json({ error: "Database error" });
   }
 };
 
-// 6. SEND OTP (REAL EMAIL LOGIC)
+// 6. SEND OTP 
 export const sendAuthOtp = async (req: Request, res: Response) => {
-  const { email } = req.body;
+  const normalizedEmail = normalizeEmail(req.body.email);
   const otp = Math.floor(100000 + Math.random() * 900000).toString();
   const expiry = new Date(Date.now() + 10 * 60 * 1000); // 10 mins
 
   try {
-    const checkUser = await query("SELECT id FROM vault_access WHERE recovery_email = $1", [email]);
+    const checkUser = await query("SELECT id FROM vault_access WHERE recovery_email = $1", [normalizedEmail]);
     
     if (checkUser.rows.length > 0) {
-      await query("UPDATE vault_access SET reset_token = $1, reset_token_expiry = $2 WHERE recovery_email = $3", [otp, expiry, email]);
+      await query("UPDATE vault_access SET reset_token = $1, reset_token_expiry = $2 WHERE recovery_email = $3", [otp, expiry, normalizedEmail]);
     } else {
-      await query("INSERT INTO vault_access (recovery_email, reset_token, reset_token_expiry, is_setup_complete) VALUES ($1, $2, $3, false)", [email, otp, expiry]);
+      await query("INSERT INTO vault_access (recovery_email, reset_token, reset_token_expiry, is_setup_complete) VALUES ($1, $2, $3, false)", [normalizedEmail, otp, expiry]);
     }
 
-    // --- REAL EMAIL SENDING ---
     if (process.env.EMAIL_USER && process.env.EMAIL_PASS) {
       await transporter.sendMail({
         from: `"TenderFlow Security" <${process.env.EMAIL_USER}>`,
-        to: email,
+        to: normalizedEmail,
         subject: "Your TenderFlow Verification Code",
         html: `
           <div style="font-family: sans-serif; padding: 20px; color: #333;">
@@ -177,7 +188,7 @@ export const sendAuthOtp = async (req: Request, res: Response) => {
           </div>
         `
       });
-      console.log(`[AUTH] ✅ Email successfully sent to ${email}`);
+      console.log(`[AUTH] ✅ Email successfully sent to ${normalizedEmail}`);
     } else {
       console.warn(`[AUTH] ⚠️ Missing EMAIL_USER/PASS. Check .env file.`);
     }
@@ -191,9 +202,10 @@ export const sendAuthOtp = async (req: Request, res: Response) => {
 
 // 7. VERIFY OTP
 export const verifyAuthOtp = async (req: Request, res: Response) => {
-  const { email, otp } = req.body;
+  const normalizedEmail = normalizeEmail(req.body.email);
+  const { otp } = req.body;
   try {
-    const result = await query("SELECT * FROM vault_access WHERE recovery_email = $1", [email]);
+    const result = await query("SELECT * FROM vault_access WHERE recovery_email = $1", [normalizedEmail]);
     if (result.rows.length === 0) return res.status(400).json({ error: "User not found" });
 
     const user = result.rows[0];
@@ -210,9 +222,10 @@ export const verifyAuthOtp = async (req: Request, res: Response) => {
 
 // 8. VERIFY 2FA
 export const verify2FA = async (req: Request, res: Response) => {
-  const { userCode, email, isSetupMode } = req.body;
+  const normalizedEmail = normalizeEmail(req.body.email);
+  const { userCode, isSetupMode } = req.body;
   try {
-    const result = await query("SELECT two_fa_secret FROM vault_access WHERE recovery_email = $1", [email]);
+    const result = await query("SELECT two_fa_secret FROM vault_access WHERE recovery_email = $1", [normalizedEmail]);
     if (result.rows.length === 0) return res.status(404).json({ error: "Account not found." });
 
     const verified = speakeasy.totp.verify({
@@ -224,9 +237,9 @@ export const verify2FA = async (req: Request, res: Response) => {
     
     if (verified) {
       if (isSetupMode) {
-        await query("UPDATE vault_access SET is_2fa_enabled = true, is_setup_complete = true WHERE recovery_email = $1", [email]);
+        await query("UPDATE vault_access SET is_2fa_enabled = true, is_setup_complete = true WHERE recovery_email = $1", [normalizedEmail]);
       } else {
-        await query("UPDATE vault_access SET is_2fa_enabled = true WHERE recovery_email = $1", [email]);
+        await query("UPDATE vault_access SET is_2fa_enabled = true WHERE recovery_email = $1", [normalizedEmail]);
       }
       res.json({ success: true });
     } else {

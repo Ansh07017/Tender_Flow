@@ -263,6 +263,27 @@ app.post("/api/discover", async (req: Request, res: Response) => {
   }
 });
 
+// --- ADD NEW DOCUMENT TO VAULT ---
+app.post('/api/vault/add-document', upload.single('file'), async (req: Request, res: Response) => {
+    try {
+        const { certName, category, expiryDate } = req.body;
+        const file = req.file;
+        if (!file) return res.status(400).json({ error: "No file uploaded" });
+
+        const finalExpiry = expiryDate === 'Lifetime' ? '2099-12-31' : expiryDate;
+
+        const result = await pool.query(
+            "INSERT INTO compliance_vault (cert_name, category, is_valid, expiry_date, file_path) VALUES ($1, $2, true, $3, $4) RETURNING id",
+            [certName, category, finalExpiry, file.path]
+        );
+        
+        res.json({ success: true, newId: result.rows[0].id, filePath: file.path });
+    } catch (err) {
+        console.error("Add Document Error:", err);
+        res.status(500).json({ error: "Failed to add new document to vault" });
+    }
+});
+
 app.get("/api/vault/documents", async (req: Request, res: Response) => {
   try {
     const result = await pool.query(`

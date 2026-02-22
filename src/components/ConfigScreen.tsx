@@ -263,7 +263,7 @@ export const ConfigScreen: React.FC<ConfigScreenProps> = ({
       {/* 3. SYSTEM FOOTER (Slimmed down by 20%) */}
       <div className="shrink-0 bg-slate-900/40 border border-slate-800 rounded-3xl py-3 px-6 flex items-center justify-between backdrop-blur-xl shadow-xl">
         <p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest pl-2">
-          System Version 2.4.0 • Authorized Access Only
+          System Version 2.0 • Authorized Access Only
         </p>
         
         <div className="flex gap-3">

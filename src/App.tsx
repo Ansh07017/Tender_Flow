@@ -95,7 +95,7 @@ const App: React.FC = () => {
     []
   );
 
-  /* -------------------- Authentication Check (UPDATED) -------------------- */
+  /* -------------------- Authentication Check -------------------- */
   useEffect(() => {
     const savedUser = localStorage.getItem('tf_auth_user');
     const setupDone = localStorage.getItem('tf_setup_complete') === 'true';
@@ -105,7 +105,6 @@ const App: React.FC = () => {
       setUser(parsedUser);
       setIsAuthSessionActive(true);
       
-      // FIX: Ensure we resume onboarding if the user hit refresh mid-setup
       if (setupDone) {
         setOnboardingStep('NONE');
       } else {
@@ -142,11 +141,9 @@ const App: React.FC = () => {
         .sort((a, b) => (b.availableQuantity * b.unitSalesPrice) - (a.availableQuantity * a.unitSalesPrice))[0];
       
       if (!heroProduct) return;
-      
-      if (!heroProduct) return;
 
       setIsDiscoveryScanning(true);
-      addLog('MASTER_AGENT', `Auto-Discovery: Identifying tenders for high-stock item: ${heroProduct.productCategory}`);
+      addLog('MASTER_AGENT', `Auto-Discovery: Identifying tenders for high-value asset: ${heroProduct.productCategory}`);
 
       try {
         const response = await fetch('http://localhost:3001/api/discover', {
@@ -188,7 +185,7 @@ const App: React.FC = () => {
     );
   };
 
-const processRfp = async (rfpId: string, override?: Rfp) => {
+  const processRfp = async (rfpId: string, override?: Rfp) => {
     const rfp = override || rfps.find(r => r.id === rfpId);
     if (!rfp) return;
 
@@ -334,10 +331,10 @@ const processRfp = async (rfpId: string, override?: Rfp) => {
               addRfp({ source: 'URL', content: url, fileName: `GeM_${bidId}` });
             }}
             onRefreshDiscovery={() => {
-     setHasSearched(false);
-     setIsDiscoveryScanning(true);
-     setTimeout(() => setIsDiscoveryScanning(false), 2000); 
-  }}
+               setHasSearched(false);
+               setIsDiscoveryScanning(true);
+               setTimeout(() => setIsDiscoveryScanning(false), 2000); 
+            }}
           />
         );
 
@@ -454,7 +451,6 @@ const processRfp = async (rfpId: string, override?: Rfp) => {
         return selectedRfp ? (
           <FinalRecommendation 
             rfp={selectedRfp}
-            // ADD THIS NEW PROP:
             analysisContext={analysisContext} 
             onBack={() => setCurrentView('analysis')}
             onCancel={() => {
@@ -488,6 +484,7 @@ const processRfp = async (rfpId: string, override?: Rfp) => {
         return selectedRfp ? (
           <ProcessingScreen
             rfp={selectedRfp}
+            config={config} // FIXED: Injected dynamic config for UI syncing
             logs={logs.filter(l => processingStartTime && l.timestamp >= processingStartTime)}
             onViewResults={() => handleViewAnalysis(selectedRfp.id)}
             onBack={handleBackToList}
@@ -518,7 +515,7 @@ const processRfp = async (rfpId: string, override?: Rfp) => {
     );
   }
 
-  // --- GATE 2: ONBOARDING / CHANGE PIN (UPDATED) ---
+  // --- GATE 2: ONBOARDING / CHANGE PIN ---
   if (onboardingStep !== 'NONE') {
     return (
       <OnboardingWizard 
@@ -526,7 +523,6 @@ const processRfp = async (rfpId: string, override?: Rfp) => {
         email={user?.email || ''}
         isSetupComplete={user?.is_setup_complete}
         onComplete={() => {
-          // FIX: Force App to remember you finished the setup!
           setOnboardingStep('NONE');
           if (user) {
              const updatedUser = { ...user, is_setup_complete: true, has_pin: true };
@@ -547,6 +543,7 @@ const processRfp = async (rfpId: string, override?: Rfp) => {
     );
   }
 
+  // --- MAIN APPLICATION LAYOUT ---
   return (
     <div className="h-screen w-full bg-slate-950 flex flex-col overflow-hidden font-sans">
       <Header currentView={currentView} setCurrentView={setCurrentView} />
@@ -567,4 +564,5 @@ const processRfp = async (rfpId: string, override?: Rfp) => {
     </div>
   );
 };
+
 export default App;
