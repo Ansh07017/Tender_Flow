@@ -2,7 +2,7 @@ import * as React from 'react';
 import { useState } from 'react';
 import { 
   ShieldCheck, Upload, FileText,
-  Eye, ArrowLeft, Lock, Calendar, Plus, FolderLock
+  Eye, ArrowLeft, Lock, Calendar, Plus, FolderLock, Download
 } from 'lucide-react';
 
 interface VaultItem {
@@ -97,7 +97,7 @@ export const VaultScreen: React.FC<VaultScreenProps> = ({ onBack }) => {
       
       const data = await res.json();
       
-      if (data.success || true) { // Force true for local dev failsafe
+      if (data.success) { 
         if (uploadModal.mode === 'create') {
            const newItem: VaultItem = {
               id: data.newId || Date.now(),
@@ -105,13 +105,13 @@ export const VaultScreen: React.FC<VaultScreenProps> = ({ onBack }) => {
               category: newDocCategory,
               is_valid: true,
               expiry_date: noExpiry ? 'Lifetime' : expiryDate,
-              file_path: selectedFile.name
+              file_path: data.filePath // Using the correct backend generated filename
            };
            setDocuments(prev => [newItem, ...prev]);
         } else {
            setDocuments(prev => prev.map(d => 
              d.id === uploadModal.docId 
-               ? { ...d, is_valid: true, expiry_date: noExpiry ? 'Lifetime' : expiryDate, file_path: selectedFile.name } 
+               ? { ...d, is_valid: true, expiry_date: noExpiry ? 'Lifetime' : expiryDate, file_path: data.filePath } 
                : d
            ));
         }
@@ -144,7 +144,6 @@ export const VaultScreen: React.FC<VaultScreenProps> = ({ onBack }) => {
           </div>
         </div>
 
-        {/* --- ADD NEW DOCUMENT BUTTON --- */}
         <button 
           onClick={openCreateModal} 
           className="flex items-center gap-2 bg-blue-600 hover:bg-blue-500 text-white px-5 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all shadow-lg shadow-blue-900/20"
@@ -188,7 +187,7 @@ export const VaultScreen: React.FC<VaultScreenProps> = ({ onBack }) => {
                       <div>
                           <h3 className="text-sm font-bold text-white leading-tight pr-4">{doc.cert_name}</h3>
                           <p className={`text-[10px] font-black uppercase tracking-widest mt-1.5 ${doc.is_valid ? 'text-emerald-400' : 'text-red-400'}`}>
-                              {doc.is_valid ? 'Verified Active' : 'Missing / Expired'}
+                              {doc.is_valid ? 'Verified Active' : 'Expired'}
                           </p>
                       </div>
                   </div>
@@ -199,21 +198,42 @@ export const VaultScreen: React.FC<VaultScreenProps> = ({ onBack }) => {
                           <span className={doc.expiry_date === 'Expired' ? 'text-red-400' : 'text-slate-300'}>{doc.expiry_date}</span>
                       </div>
 
+                      {/* --- THE NEW ACTION BAR (VIEW, DOWNLOAD, UPDATE) --- */}
                       <div className="flex gap-2">
                           {doc.is_valid && (
-                              <button className="flex-1 py-2.5 flex items-center justify-center gap-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all">
-                                  <Eye className="w-3 h-3" /> View
-                              </button>
+                              <>
+                                <button 
+                                  onClick={() => {
+                                      const API_BASE = window.location.hostname === 'localhost' ? 'http://localhost:3001' : '';
+                                      window.open(`${API_BASE}/api/vault/view/${doc.file_path}`, '_blank');
+                                  }}
+                                  className="flex-1 py-2.5 flex items-center justify-center gap-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all"
+                                  title="Preview Document"
+                                >
+                                    <Eye className="w-3 h-3" /> View
+                                </button>
+                                
+                                <button 
+                                  onClick={() => {
+                                      const API_BASE = window.location.hostname === 'localhost' ? 'http://localhost:3001' : '';
+                                      window.open(`${API_BASE}/api/vault/download/${doc.file_path}`, '_self');
+                                  }}
+                                  className="flex-1 py-2.5 flex items-center justify-center gap-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all"
+                                  title="Download to PC"
+                                >
+                                    <Download className="w-3 h-3" /> Save
+                                </button>
+                              </>
                           )}
                           <button 
                               onClick={() => openUpdateModal(doc.id, doc.cert_name)}
-                              className={`flex-1 py-2.5 flex items-center justify-center gap-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${
+                              className={`flex-1 py-2.5 flex items-center justify-center gap-1.5 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all ${
                                   doc.is_valid 
                                       ? 'bg-slate-950 border border-slate-800 text-slate-400 hover:text-blue-400 hover:border-blue-500/50' 
                                       : 'bg-blue-600 text-white hover:bg-blue-500 shadow-lg shadow-blue-900/20'
                                   }`}
                           >
-                              <Upload className="w-3 h-3" /> {doc.is_valid ? 'Update File' : 'Upload Now'}
+                              <Upload className="w-3 h-3" /> {doc.is_valid ? 'Update' : 'Upload Now'}
                           </button>
                       </div>
                   </div>

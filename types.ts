@@ -29,6 +29,7 @@ export type TruckType =
   | 'MINI_TRUCK'
   | 'LCV'
   | 'MEDIUM_TRUCK'
+  | 'Trailer'
   | 'HEAVY_TRUCK';
 
 export interface ExtractedDocument {

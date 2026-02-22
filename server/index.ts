@@ -55,7 +55,6 @@ async function extractTextFromBuffer(buffer: ArrayBuffer): Promise<{ fullText: s
     try {
       const annotations = await page.getAnnotations();
       annotations.forEach((anno: any) => {
-        // EXACT AS IT IS: No filtering. If it has a URL, grab it.
         if (anno.subtype === 'Link' && anno.url) {
              extractedLinks.push(anno.url);
         }
@@ -116,7 +115,6 @@ app.post("/api/convert-pdf", async (req: Request, res: Response) => {
     const { url, fileName } = req.body;
     console.log(`[CONVERT_ENGINE] Initiating proxy download for: ${fileName}`);
 
-    // 1. Download the file locally using Chrome headers to bypass GeM security
     const pdfResponse = await axios.get(url, {
       responseType: 'arraybuffer',
       headers: {
@@ -126,22 +124,18 @@ app.post("/api/convert-pdf", async (req: Request, res: Response) => {
       }
     });
 
-    // 2. Save it locally to the existing vault_storage folder
     tempFilePath = path.join(vaultDir, `temp_convert_${Date.now()}.pdf`);
     fs.writeFileSync(tempFilePath, pdfResponse.data);
     console.log(`[CONVERT_ENGINE] Temporarily saved to: ${tempFilePath}`);
 
-    // 3. Point ConvertAPI to the LOCAL file path instead of the GeM URL
     console.log(`[CONVERT_ENGINE] Uploading local file to ConvertAPI...`);
     const result = await convertapi.convert('docx', {
         File: tempFilePath,
     }, 'pdf');
 
-    // Get the final download link from ConvertAPI
     const docxUrl = result.file.url;
     console.log(`[CONVERT_ENGINE] ✅ Success: ${docxUrl}`);
 
-    // 4. Immediately delete the local PDF from our storage
     fs.unlinkSync(tempFilePath);
     console.log(`[CONVERT_ENGINE] 🧹 Cleaned up temporary file.`);
 
@@ -149,20 +143,14 @@ app.post("/api/convert-pdf", async (req: Request, res: Response) => {
 
   } catch (err: any) {
     console.error("🔥 [CONVERT_ENGINE] Failed:", err.message);
-    
-    // Failsafe: Ensure we still delete the local file even if ConvertAPI crashes!
     if (tempFilePath && fs.existsSync(tempFilePath)) {
        fs.unlinkSync(tempFilePath);
        console.log(`[CONVERT_ENGINE] 🧹 Cleaned up temporary file after error.`);
     }
-
     res.status(500).json({ success: false, error: "Conversion failed" });
   }
 });
 
-// ============================================================================
-//  REAL-TIME MARKET INTELLIGENCE (Cached)
-// ============================================================================
 // ============================================================================
 //  REAL-TIME MARKET INTELLIGENCE (Cached AI JSON Payload)
 // ============================================================================
@@ -171,9 +159,8 @@ let lastInsightFetchTime = 0;
 
 app.get("/api/market-insights", async (req: Request, res: Response) => {
   try {
-    const CACHE_TTL = 1000 * 60 * 60; // Cache for 1 Hour to save API costs
+    const CACHE_TTL = 1000 * 60 * 60; // Cache for 1 Hour
     
-    // Serve from cache if valid
     if (cachedMarketData && (Date.now() - lastInsightFetchTime < CACHE_TTL)) {
       console.log("[MARKET_INTEL] Serving cached unified market data.");
       return res.json({ success: true, data: cachedMarketData });
@@ -185,18 +172,10 @@ app.get("/api/market-insights", async (req: Request, res: Response) => {
 1. "insights": An array of exactly 4 short, distinct sentences (max 20 words each) about current global macroeconomic trends for Copper, Aluminum, and PVC resin.
 2. "commodities": An array of exactly 4 objects for specific commodities (Copper, Aluminum, PVC Resin, Galvanized Steel). Each object must have: "symbol" (e.g. "LME.Cu"), "name", "price" (approximate current INR price formatted as string, e.g. "₹715.50"), "trend" (percentage trend string, e.g. "+1.2%"), and "up" (boolean true if trend is positive, false if negative).
 
-RETURN ONLY RAW JSON. NO MARKDOWN.
-Example Output:
-{
-  "insights": ["Copper prices soar amid supply constraints.", "Aluminum stabilizes globally..."],
-  "commodities": [
-    { "symbol": "LME.Cu", "name": "Copper (Grade A)", "price": "₹715.50", "trend": "+1.2%", "up": true }
-  ]
-}`;
+RETURN ONLY RAW JSON. NO MARKDOWN.`;
     
     const aiResponse = await getHelperBotResponse(prompt, null, []); 
     
-    // Safely parse the JSON response from the LLM
     const cleanJson = aiResponse.replace(/```json/g, '').replace(/```/g, '').trim();
     const parsedData = JSON.parse(cleanJson);
     
@@ -211,8 +190,6 @@ Example Output:
     });
   } catch (err: any) {
     console.error("🔥 [MARKET_INTEL] Fetch Error:", err.message);
-    
-    // Failsafe Payload if LLM times out
     res.json({ 
       success: false, 
       data: cachedMarketData || { 
@@ -228,15 +205,15 @@ Example Output:
   }
 });
 
+// ============================================================================
+//  DISCOVERY & AGENT ROUTES
+// ============================================================================
 app.post("/api/discover", async (req: Request, res: Response) => {
   try {
     const { portal, category, filters, inventory } = req.body;
 
     if (!category || !inventory) {
-      return res.status(400).json({ 
-        success: false, 
-        error: "Missing required discovery parameters (category or inventory)." 
-      });
+      return res.status(400).json({ success: false, error: "Missing required discovery parameters" });
     }
 
     const coordinator = new DiscoveryCoordinator(inventory, (agent, message, data) => {
@@ -245,25 +222,20 @@ app.post("/api/discover", async (req: Request, res: Response) => {
 
     addLogToConsole('MASTER_AGENT', `Starting discovery for: ${category}`);
     
-    const qualifiedBids = await coordinator.runDiscovery(
-      portal || 'gem', 
-      category, 
-      filters
-    );
-
+    const qualifiedBids = await coordinator.runDiscovery(portal || 'gem', category, filters);
     res.json({ success: true, data: qualifiedBids });
 
   } catch (err: any) {
     console.error("Discovery Route Error:", err.message);
-    res.status(500).json({ 
-      success: false, 
-      error: "Discovery Agent failed to scan portals",
-      message: err.message 
-    });
+    res.status(500).json({ success: false, error: "Discovery Agent failed to scan portals", message: err.message });
   }
 });
 
-// --- ADD NEW DOCUMENT TO VAULT ---
+// ============================================================================
+//  VAULT MANAGEMENT ENDPOINTS
+// ============================================================================
+
+// 1. ADD NEW DOCUMENT 
 app.post('/api/vault/add-document', upload.single('file'), async (req: Request, res: Response) => {
     try {
         const { certName, category, expiryDate } = req.body;
@@ -274,16 +246,17 @@ app.post('/api/vault/add-document', upload.single('file'), async (req: Request, 
 
         const result = await pool.query(
             "INSERT INTO compliance_vault (cert_name, category, is_valid, expiry_date, file_path) VALUES ($1, $2, true, $3, $4) RETURNING id",
-            [certName, category, finalExpiry, file.path]
+            [certName, category, finalExpiry, file.filename] // FIXED: file.filename prevents absolute path bugs
         );
         
-        res.json({ success: true, newId: result.rows[0].id, filePath: file.path });
+        res.json({ success: true, newId: result.rows[0].id, filePath: file.filename });
     } catch (err) {
         console.error("Add Document Error:", err);
         res.status(500).json({ error: "Failed to add new document to vault" });
     }
 });
 
+// 2. FETCH ALL DOCUMENTS
 app.get("/api/vault/documents", async (req: Request, res: Response) => {
   try {
     const result = await pool.query(`
@@ -291,13 +264,14 @@ app.get("/api/vault/documents", async (req: Request, res: Response) => {
       FROM compliance_vault 
       WHERE is_valid = true
     `);
-    
     res.json({ success: true, documents: result.rows });
   } catch (err: any) {
     console.error("🔥 [VAULT] Fetch Error:", err.message);
     res.status(500).json({ success: false, error: "Failed to fetch vault documents" });
   }
 });
+
+// 3. UPDATE EXISTING DOCUMENT
 app.post('/api/vault/upload', upload.single('file'), async (req: Request, res: Response) => {
     try {
         const { docId, expiryDate } = req.body;
@@ -308,20 +282,30 @@ app.post('/api/vault/upload', upload.single('file'), async (req: Request, res: R
 
         await pool.query(
             "UPDATE compliance_vault SET file_path = $1, is_valid = true, expiry_date = $2 WHERE id = $3",
-            [file.path, finalExpiry, docId]
+            [file.filename, finalExpiry, docId] // FIXED: file.filename
         );
-        res.json({ success: true, filePath: file.path });
+        res.json({ success: true, filePath: file.filename });
     } catch (err) {
         console.error("Upload Error:", err);
         res.status(500).json({ error: "Upload failed" });
     }
 });
 
-app.get('/api/vault/download/:filename', (req, res) => {
+// 4. VIEW DOCUMENT (Opens in Browser Tab)
+app.get('/api/vault/view/:filename', (req, res) => {
     const filePath = path.join(vaultDir, req.params.filename);
-    res.download(filePath);
+    res.sendFile(filePath); // sendFile tells browser to display inline
 });
 
+// 5. DOWNLOAD DOCUMENT (Forces Hard Download)
+app.get('/api/vault/download/:filename', (req, res) => {
+    const filePath = path.join(vaultDir, req.params.filename);
+    res.download(filePath); // download forces Save As dialog
+});
+
+// ============================================================================
+//  OTHER ENDPOINTS
+// ============================================================================
 app.get("/api/compliance-check", async (req: Request, res: Response) => {
   try {
     const profile = await pool.query("SELECT * FROM company_profile LIMIT 1");
@@ -403,7 +387,6 @@ app.post("/api/parse-rfp", async (req: Request, res: Response) => {
       return res.status(400).json({ error: "INVALID_REQUEST", message: "RFP content is missing" });
     }
 
-    // --- WIDE NET LINK EXTRACTION ---
     let finalLinks = extractedLinks || [];
     if (finalLinks.length === 0) {
        const relativeLinks = content.match(/\/bidding\/buyer\/[a-zA-Z0-9\/_-]+/g) || [];
@@ -412,9 +395,6 @@ app.post("/api/parse-rfp", async (req: Request, res: Response) => {
        const mappedRelative = relativeLinks.map((u: string) => `https://bidplus.gem.gov.in${u}`);
        finalLinks = Array.from(new Set([...absoluteLinks, ...mappedRelative]));
     }
-    
-    // ❌ REMOVED THE JUNK FILTER COMPLETELY. 
-    // ALL links go straight to Grok now.
 
     const atcSlice = extractATCSlice(content);
 
@@ -437,8 +417,8 @@ app.post("/api/parse-rfp", async (req: Request, res: Response) => {
       return res.json({ data: { parsedData, technicalAnalysis: { itemAnalyses: [] }, pricing: {}, riskAnalysis: [] } });
     }
 
-const activeInventory = inventory && inventory.length > 0 ? inventory : productInventory;
-const technicalResult = runTechnicalAgent(products, activeInventory);
+    const activeInventory = inventory && inventory.length > 0 ? inventory : productInventory;
+    const technicalResult = runTechnicalAgent(products, activeInventory);
     const hasLineItems = technicalResult?.itemAnalyses && technicalResult.itemAnalyses.length > 0;
 
     const defaultFilters = { manualAvgKms: 0, manualRatePerKm: 55, allowEMD: true, minMatchThreshold: 20 };
