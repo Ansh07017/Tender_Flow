@@ -45,8 +45,8 @@ export const DiscoveryScreen: React.FC<DiscoveryScreenProps> = ({
       {/* --- SIDEBAR: LOGISTICS COMMAND --- */}
       <div className="w-full lg:w-80 flex flex-col h-full bg-slate-900/40 border border-slate-800 rounded-3xl backdrop-blur-xl shadow-2xl overflow-hidden">
         <div className="p-6 border-b border-slate-800/50">
-          <h1 className="text-2xl font-black italic tracking-tighter text-white uppercase drop-shadow-md">
-            Master<span className="text-gold-500"> Inventory  </span>
+          <h1 className="text-xl font-black italic tracking-tighter text-white uppercase drop-shadow-md">
+            Master<span className="text-gold-500"> Qualification  </span>
             </h1>
           <div className="mt-3 inline-block px-2 py-1 bg-blue-500/10 border border-blue-500/30 text-blue-400 rounded-md text-[8px] font-black uppercase tracking-widest">
             Active Filter: Next 3 Months

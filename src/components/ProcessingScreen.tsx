@@ -1,5 +1,5 @@
 import * as React from 'react';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Rfp, LogEntry } from '../../types';
 import { TrendingUp, TrendingDown, Activity, Cpu, ShieldCheck, Database, Factory, Award } from 'lucide-react';
 
@@ -8,7 +8,7 @@ interface ProcessingScreenProps {
   logs: LogEntry[];
   onViewResults: () => void;
   onBack: () => void;
-  priorPhasesDuration: number; 
+  priorPhasesDuration: number;
   processingStartTime: Date | null;
 }
 
@@ -19,8 +19,16 @@ export const ProcessingScreen: React.FC<ProcessingScreenProps> = ({
   const [insightIndex, setInsightIndex] = useState(0);
   const [isSnapshotOpen, setIsSnapshotOpen] = useState(false);
   
-  // LIVE AI MARKET DATA (Cached via backend)
+  // LIVE AI MARKET DATA (Unified Payload)
   const [liveInsights, setLiveInsights] = useState<string[]>(["Establishing secure uplink to market intelligence..."]);
+  const [commodities, setCommodities] = useState<any[]>([
+    { symbol: "LME.Cu", name: "Copper (Grade A)", price: "₹---", trend: "---", up: true },
+    { symbol: "LME.Al", name: "Primary Alum", price: "₹---", trend: "---", up: true },
+    { symbol: "IDX.PVC", name: "PVC Resin", price: "₹---", trend: "---", up: true },
+    { symbol: "IDX.STL", name: "Galv Steel", price: "₹---", trend: "---", up: true }
+  ]);
+
+  const logsEndRef = useRef<HTMLDivElement>(null);
   
   const isProcessing = rfp.status !== 'Complete' && rfp.status !== 'Error';
   const isExtractionDone = rfp.status === 'Complete';
@@ -31,9 +39,15 @@ export const ProcessingScreen: React.FC<ProcessingScreenProps> = ({
       try {
         const API_BASE = window.location.hostname === 'localhost' ? 'http://localhost:3001' : '';
         const res = await fetch(`${API_BASE}/api/market-insights`);
-        const data = await res.json();
-        if (data.success && data.insights && data.insights.length > 0) {
-          setLiveInsights(data.insights);
+        const json = await res.json();
+        
+        if (json.success && json.data) {
+          if (json.data.insights && json.data.insights.length > 0) {
+            setLiveInsights(json.data.insights);
+          }
+          if (json.data.commodities && json.data.commodities.length > 0) {
+            setCommodities(json.data.commodities);
+          }
         }
       } catch (err) {
         console.warn("Failed to fetch live insights.");
@@ -43,7 +57,6 @@ export const ProcessingScreen: React.FC<ProcessingScreenProps> = ({
     fetchLiveIntelligence();
   }, []);
 
-  // 2. CUMULATIVE TIMER
   useEffect(() => {
     let timer: NodeJS.Timeout;
     if (isProcessing) {
@@ -59,6 +72,11 @@ export const ProcessingScreen: React.FC<ProcessingScreenProps> = ({
     }, 6000);
     return () => clearInterval(insightTicker);
   }, [liveInsights.length]);
+
+  // Auto-Scroll trigger whenever 'logs' array updates
+  useEffect(() => {
+    logsEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [logs]);
 
   return (
     <div className="h-full w-full bg-slate-950 text-slate-200 flex flex-col relative font-sans overflow-hidden">
@@ -93,7 +111,7 @@ export const ProcessingScreen: React.FC<ProcessingScreenProps> = ({
         <div className="grid grid-cols-12 gap-6 flex-grow overflow-hidden mb-6 min-h-0">
           
           {/* COLUMN 1: LIVE LOG STREAM */}
-          <div className="col-span-4 flex flex-col bg-slate-900/40 border border-slate-800 rounded-3xl overflow-hidden shadow-2xl backdrop-blur-md">
+          <div className="col-span-4 flex flex-col bg-slate-900/40 border border-slate-800 rounded-3xl overflow-hidden shadow-2xl backdrop-blur-md min-h-0 h-full">
             <div className="p-4 border-b border-slate-800 bg-slate-900/60 flex justify-between items-center shrink-0">
               <span className="text-[10px] font-black uppercase tracking-widest text-slate-400 flex items-center gap-2">
                  <Cpu className="w-3 h-3 text-purple-500" /> Agent Live Stream
@@ -119,6 +137,7 @@ export const ProcessingScreen: React.FC<ProcessingScreenProps> = ({
                     <div className="w-1.5 h-3 bg-gold-500" /> SYSTEM_ORCHESTRATION_ACTIVE...
                   </div>
                 )}
+                <div ref={logsEndRef} />
               </div>
             </div>
           </div>
@@ -188,12 +207,18 @@ export const ProcessingScreen: React.FC<ProcessingScreenProps> = ({
           </div>
 
           {/* COLUMN 3: MARKET INTELLIGENCE (Always visible) */}
-          <div className="col-span-4 flex flex-col gap-4">
+          <div className="col-span-4 flex flex-col gap-4 min-h-0">
             <div className="grid grid-cols-2 gap-4 shrink-0">
-              <CommodityCard symbol="LME.Cu" name="Copper (Grade A)" price="₹715.50" trend="+1.2%" up={true} />
-              <CommodityCard symbol="LME.Al" name="Primary Alum" price="₹210.20" trend="-0.4%" up={false} />
-              <CommodityCard symbol="IDX.PVC" name="PVC Resin" price="₹85.00" trend="+0.8%" up={true} />
-              <CommodityCard symbol="IDX.STL" name="Galv Steel" price="₹62.50" trend="+0.1%" up={true} />
+              {commodities.map((item, idx) => (
+                <CommodityCard 
+                  key={idx} 
+                  symbol={item.symbol} 
+                  name={item.name} 
+                  price={item.price} 
+                  trend={item.trend} 
+                  up={item.up} 
+                />
+              ))}
             </div>
             
             <div className="flex-grow bg-blue-900/10 border border-blue-500/20 rounded-3xl p-6 relative overflow-hidden flex flex-col justify-center backdrop-blur-md">

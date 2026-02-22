@@ -434,9 +434,12 @@ export const FinalRecommendation: React.FC<FinalRecommendationProps> = ({ rfp, a
             Abort Process
          </button>
          
-         <button onClick={handleGeneratePdf} disabled={isGenerating} className="flex items-center gap-3 px-8 py-4 bg-gold-500 hover:bg-white text-slate-950 rounded-xl shadow-[0_0_20px_rgba(212,175,55,0.3)] transition-all text-xs font-black uppercase tracking-widest disabled:opacity-50">
-            {isGenerating ? 'Exporting PDF...' : <><Share2 className="w-4 h-4" /> Export Executive Report</>}
-         </button>
+         <button 
+  onClick={handleGeneratePdf} 
+  disabled={isGenerating} 
+  className="flex items-center gap-3 px-8 py-4 bg-amber-500 hover:bg-white text-slate-950 rounded-xl shadow-[0_0_20px_rgba(245,158,11,0.4)] transition-all text-xs font-black uppercase tracking-widest disabled:opacity-50">
+  {isGenerating ? 'Exporting PDF...' : <><Share2 className="w-4 h-4" /> Export Executive Report</>}
+</button>
       </div>
       <style>{`.scrollbar-hide::-webkit-scrollbar { display: none; }`}</style>
     </div>

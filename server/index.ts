@@ -107,9 +107,6 @@ app.post("/api/auth/send-otp", sendAuthOtp);
 app.post("/api/auth/verify-otp", verifyAuthOtp);
 
 // ============================================================================
-//  REAL PDF TO DOCX CONVERSION ENGINE
-// ============================================================================
-// ============================================================================
 //  REAL PDF TO DOCX CONVERSION ENGINE (PROXY DOWNLOADER)
 // ============================================================================
 app.post("/api/convert-pdf", async (req: Request, res: Response) => {
@@ -166,7 +163,10 @@ app.post("/api/convert-pdf", async (req: Request, res: Response) => {
 // ============================================================================
 //  REAL-TIME MARKET INTELLIGENCE (Cached)
 // ============================================================================
-let cachedInsights: string[] = [];
+// ============================================================================
+//  REAL-TIME MARKET INTELLIGENCE (Cached AI JSON Payload)
+// ============================================================================
+let cachedMarketData: any = null;
 let lastInsightFetchTime = 0;
 
 app.get("/api/market-insights", async (req: Request, res: Response) => {
@@ -174,37 +174,56 @@ app.get("/api/market-insights", async (req: Request, res: Response) => {
     const CACHE_TTL = 1000 * 60 * 60; // Cache for 1 Hour to save API costs
     
     // Serve from cache if valid
-    if (cachedInsights.length > 0 && (Date.now() - lastInsightFetchTime < CACHE_TTL)) {
-      console.log("[MARKET_INTEL] Serving cached insights.");
-      return res.json({ success: true, insights: cachedInsights });
+    if (cachedMarketData && (Date.now() - lastInsightFetchTime < CACHE_TTL)) {
+      console.log("[MARKET_INTEL] Serving cached unified market data.");
+      return res.json({ success: true, data: cachedMarketData });
     }
 
     console.log("[MARKET_INTEL] Fetching live market data via AI...");
     
-    const prompt = "You are a financial commodities analyst. Provide exactly 4 short, distinct sentences (max 20 words each) about the current global market trends for Copper, Aluminum, and PVC resin. Do not use bullet points or numbers. Separate each sentence with a newline character.";
+    const prompt = `You are a live financial API. Output a strict JSON object containing two keys:
+1. "insights": An array of exactly 4 short, distinct sentences (max 20 words each) about current global macroeconomic trends for Copper, Aluminum, and PVC resin.
+2. "commodities": An array of exactly 4 objects for specific commodities (Copper, Aluminum, PVC Resin, Galvanized Steel). Each object must have: "symbol" (e.g. "LME.Cu"), "name", "price" (approximate current INR price formatted as string, e.g. "₹715.50"), "trend" (percentage trend string, e.g. "+1.2%"), and "up" (boolean true if trend is positive, false if negative).
+
+RETURN ONLY RAW JSON. NO MARKDOWN.
+Example Output:
+{
+  "insights": ["Copper prices soar amid supply constraints.", "Aluminum stabilizes globally..."],
+  "commodities": [
+    { "symbol": "LME.Cu", "name": "Copper (Grade A)", "price": "₹715.50", "trend": "+1.2%", "up": true }
+  ]
+}`;
     
-    // We pass empty context since we just want general market data
     const aiResponse = await getHelperBotResponse(prompt, null, []); 
     
-    // Clean and split the AI response into an array
-    const newInsights = aiResponse.split('\n')
-      .map((line: string) => line.replace(/^[\-\*\d\.]+\s*/, '').trim()) // Strip accidental bullets
-      .filter((line: string) => line.length > 15);
+    // Safely parse the JSON response from the LLM
+    const cleanJson = aiResponse.replace(/```json/g, '').replace(/```/g, '').trim();
+    const parsedData = JSON.parse(cleanJson);
     
-    if (newInsights.length >= 2) {
-       cachedInsights = newInsights;
+    if (parsedData.insights && parsedData.commodities) {
+       cachedMarketData = parsedData;
        lastInsightFetchTime = Date.now();
     }
 
     res.json({ 
       success: true, 
-      insights: cachedInsights.length > 0 ? cachedInsights : ["Market intelligence uplink established..."] 
+      data: cachedMarketData || { insights: ["Market intelligence uplink established..."], commodities: [] } 
     });
   } catch (err: any) {
     console.error("🔥 [MARKET_INTEL] Fetch Error:", err.message);
+    
+    // Failsafe Payload if LLM times out
     res.json({ 
       success: false, 
-      insights: cachedInsights.length > 0 ? cachedInsights : ["Global market telemetry temporarily offline."] 
+      data: cachedMarketData || { 
+        insights: ["Global market telemetry temporarily offline."],
+        commodities: [
+          { symbol: "LME.Cu", name: "Copper (Grade A)", price: "₹---", trend: "0.0%", up: true },
+          { symbol: "LME.Al", name: "Primary Alum", price: "₹---", trend: "0.0%", up: true },
+          { symbol: "IDX.PVC", name: "PVC Resin", price: "₹---", trend: "0.0%", up: true },
+          { symbol: "IDX.STL", name: "Galv Steel", price: "₹---", trend: "0.0%", up: true }
+        ] 
+      } 
     });
   }
 });
@@ -357,7 +376,7 @@ app.post("/api/fetch-rfp-url", async (req: Request, res: Response) => {
 
 app.post("/api/parse-rfp", async (req: Request, res: Response) => {
   try {
-    const { content, filters, extractedLinks } = req.body;
+    const { content, filters, extractedLinks, inventory } = req.body;
 
     if (!content || typeof content !== "string") {
       return res.status(400).json({ error: "INVALID_REQUEST", message: "RFP content is missing" });
@@ -397,7 +416,8 @@ app.post("/api/parse-rfp", async (req: Request, res: Response) => {
       return res.json({ data: { parsedData, technicalAnalysis: { itemAnalyses: [] }, pricing: {}, riskAnalysis: [] } });
     }
 
-    const technicalResult = runTechnicalAgent(products, productInventory);
+const activeInventory = inventory && inventory.length > 0 ? inventory : productInventory;
+const technicalResult = runTechnicalAgent(products, activeInventory);
     const hasLineItems = technicalResult?.itemAnalyses && technicalResult.itemAnalyses.length > 0;
 
     const defaultFilters = { manualAvgKms: 0, manualRatePerKm: 55, allowEMD: true, minMatchThreshold: 20 };
