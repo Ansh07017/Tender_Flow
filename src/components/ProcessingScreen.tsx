@@ -1,6 +1,6 @@
 import * as React from 'react';
 import { useState, useEffect, useRef } from 'react';
-import { Rfp, LogEntry } from '../../types';
+import { Rfp, LogEntry,AppConfig } from '../../types';
 import { TrendingUp, TrendingDown, Activity, Cpu, ShieldCheck, Database, Factory, Award } from 'lucide-react';
 
 interface ProcessingScreenProps {
@@ -8,12 +8,13 @@ interface ProcessingScreenProps {
   logs: LogEntry[];
   onViewResults: () => void;
   onBack: () => void;
+  config: AppConfig;
   priorPhasesDuration: number;
   processingStartTime: Date | null;
 }
 
 export const ProcessingScreen: React.FC<ProcessingScreenProps> = ({
-  rfp, logs, onViewResults, onBack, priorPhasesDuration = 0,
+  rfp,config, logs, onViewResults, onBack, priorPhasesDuration = 0,
 }) => {
   const [totalElapsed, setTotalElapsed] = useState(priorPhasesDuration);
   const [insightIndex, setInsightIndex] = useState(0);
@@ -94,7 +95,7 @@ export const ProcessingScreen: React.FC<ProcessingScreenProps> = ({
               Orchestrating <span className="text-gold-500">Analysis</span>
             </h1>
             <p className="text-slate-500 font-mono text-[10px] uppercase tracking-[0.2em] font-bold">
-              Authorization: Validated // RFP ID: {rfp.id}
+              Authorization: Validated  ⟹ RFP ID: {rfp.id}
             </p>
           </div>
           <div className="text-right">
@@ -162,12 +163,15 @@ export const ProcessingScreen: React.FC<ProcessingScreenProps> = ({
                     <div className="bg-slate-900/80 border border-slate-700/50 p-3 rounded-xl flex flex-col justify-center">
                       <Factory className="w-4 h-4 text-slate-400 mb-2" />
                       <span className="text-[9px] text-slate-500 font-bold uppercase tracking-widest">Verified Turnover</span>
-                      <span className="text-sm font-black text-white mt-0.5">₹450 Cr <span className="text-[9px] text-emerald-400 ml-1">FY24</span></span>
+                      <span className="text-sm font-black text-white mt-0.5">
+                        {(config.companyDetails as any).turnover || 'TBD'} 
+                        <span className="text-[9px] text-emerald-400 ml-1">{(config.companyDetails as any).turnoverYear || ''}</span>
+                      </span>
                     </div>
                     <div className="bg-slate-900/80 border border-slate-700/50 p-3 rounded-xl flex flex-col justify-center">
                       <Award className="w-4 h-4 text-slate-400 mb-2" />
                       <span className="text-[9px] text-slate-500 font-bold uppercase tracking-widest">OEM Status</span>
-                      <span className="text-sm font-black text-white mt-0.5">MII Class-1</span>
+                      <span className="text-sm font-black text-white mt-0.5">{(config.companyDetails as any).oemStatus || 'Not Declared'}</span>
                     </div>
                     <div className="bg-slate-900/80 border border-slate-700/50 p-3 rounded-xl flex flex-col justify-center">
                       <ShieldCheck className="w-4 h-4 text-slate-400 mb-2" />

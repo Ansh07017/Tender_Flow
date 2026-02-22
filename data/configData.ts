@@ -6,6 +6,10 @@ export const initialConfig: AppConfig = {
     companyAddress: 'Lovely Professional University, Phagwara, Jalandhar, Punjab - 144411, India',
     gstin: '03AAACT0000G1Z5',
     pan: 'AAACT0000G',
+    domain: 'Wires & Cables',       
+    turnover: '₹450 Cr',            
+    turnoverYear: 'FY25',           
+    oemStatus: 'MII Class-1'        
   },
   signingAuthorities: [
     {

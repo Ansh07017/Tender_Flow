@@ -1,12 +1,12 @@
 import * as React from 'react';
 import { useState, useMemo, useEffect } from 'react';
-import { Rfp, AppConfig,BlankDoc } from '../../types';
+import { Rfp, AppConfig, BlankDoc } from '../../types';
 import jsPDF from 'jspdf';
-import 'jspdf-autotable';
+import autoTable from 'jspdf-autotable';
 import { 
   ArrowRight, ShieldCheck, Factory, BrainCircuit, 
   FileCog, Download, CheckCircle2, RefreshCw, 
-  MapPin, Scale, Eye
+  MapPin, Scale, Eye,
 } from 'lucide-react';
 
 interface AnalysisScreenProps {
@@ -85,7 +85,8 @@ export const AnalysisScreen: React.FC<AnalysisScreenProps> = ({ rfp, config, onB
   }, [parsedData.extractedLinks, technicalResults]);
 
   const [blankDocs, setBlankDocs] = useState<BlankDoc[]>(initialBlankDocs);
-useEffect(() => {
+
+  useEffect(() => {
     const fetchLiveVault = async () => {
       try {
         const API_BASE = window.location.hostname === 'localhost' ? 'http://localhost:3001' : '';
@@ -93,17 +94,16 @@ useEffect(() => {
         const data = await res.json();
         
         if (data.success && data.documents) {
-          // Extract the names of all valid documents into our array
           setVaultLibrary(data.documents.map((doc: any) => doc.cert_name));
         }
       } catch (err) {
         console.warn("Could not fetch vault. Using fallback data for demo.");
-        // Fallback just in case the backend crashes during the demo
         setVaultLibrary(['GST Registration', 'PAN Card', 'ISO 9001:2015', 'Factory License']);
       }
     };
     fetchLiveVault();
   }, []);
+
   useEffect(() => {
     setBlankDocs(initialBlankDocs);
   }, [initialBlankDocs]);
@@ -115,7 +115,6 @@ useEffect(() => {
 
     technicalResults.forEach((analysis: any) => {
       const itemName = analysis.rfpLineItem.name;
-      
       if (disqualifiedItems.includes(itemName)) return; 
 
       const qty = analysis.rfpLineItem.quantity;
@@ -147,58 +146,178 @@ useEffect(() => {
       testing: testingCost,
       finalTotal: totalMaterialBase + totalGst + logisticsWithBuffer + gemFee + epbg + emd + profitAmount + testingCost
     };
-  }, [technicalResults, manualOverrides, logisticsParams, profitMargin, parsedMetadata, financialCond, testingProvision,disqualifiedItems]);
+  }, [technicalResults, manualOverrides, logisticsParams, profitMargin, parsedMetadata, financialCond, testingProvision, disqualifiedItems]);
 
-  // --- 5. FULLY RESTORED ACTION HANDLERS ---
-  const handleDownloadPDF = () => {
+  // --- MASTER PDF ENGINE (THE USP - HOLISTIC DOCUMENT) ---
+  const generatePremiumPDF = () => {
     const doc = new jsPDF();
-    doc.setFontSize(20);
-    doc.setTextColor(40, 40, 40);
-    doc.text("Bid Analysis Report", 14, 22);
+    const pageWidth = doc.internal.pageSize.width;
+    
+    // 1. Corporate Header
+    doc.setFillColor(15, 23, 42); // Slate 950
+    doc.rect(0, 0, pageWidth, 40, 'F');
+    doc.setTextColor(212, 175, 55); // Gold 500
+    doc.setFontSize(24);
+    doc.setFont("helvetica", "bolditalic");
+    doc.text("TENDERFLOW", 14, 22);
+    
+    doc.setTextColor(255, 255, 255);
+    doc.setFontSize(12);
+    doc.setFont("helvetica", "normal");
+    doc.text("INTELLIGENT BID ANALYSIS DOSSIER", 14, 32);
+
+    // 2. Metadata Section
+    doc.setTextColor(60, 60, 60);
     doc.setFontSize(10);
-    doc.text(`Organization: ${rfp.organisation}`, 14, 32);
-    doc.text(`Bid No: ${parsedMetadata.bidNumber || 'N/A'}`, 14, 38);
-    doc.text(`Date: ${new Date().toLocaleDateString()}`, 14, 44);
+    doc.text(`Generated: ${new Date().toLocaleString()}`, 14, 50);
+    doc.text(`Tender ID: ${parsedMetadata.bidNumber || rfp.id}`, 14, 56);
+    doc.text(`Target Department: ${parsedMetadata.department || rfp.organisation.replace('Parsing...', 'GeM Public Tender')}`, 14, 62);
+    doc.text(`Consignee Location: ${parsedData.consignee || parsedMetadata.officeName || "Multiple Locations"}`, 14, 68);
 
-    const financials = [
-      ["Material Base Cost", `Rs. ${Math.round(liveCalculations.materialBase).toLocaleString()}`],
-      ["Testing & Certification", `Rs. ${Math.round(liveCalculations.testing).toLocaleString()}`], // <-- NEW: Added to PDF Report
-      ["Total GST", `Rs. ${Math.round(liveCalculations.gst).toLocaleString()}`],
-      ["Logistics Cost", `Rs. ${Math.round(liveCalculations.logistics).toLocaleString()}`],
-      ["GeM Brokerage", `Rs. ${Math.round(liveCalculations.gemFee).toLocaleString()}`],
-      ["EMD Provision", `Rs. ${Math.round(liveCalculations.emd).toLocaleString()}`],
-      ["EPBG Provision", `Rs. ${Math.round(liveCalculations.epbg).toLocaleString()}`],
-      ["Net Profit", `Rs. ${Math.round(liveCalculations.profit).toLocaleString()}`],
-      ["FINAL BID VALUE", `Rs. ${Math.round(liveCalculations.finalTotal).toLocaleString()}`]
-    ];
+    // 3. AI Compliance & Rules Summary (From Compliance Tab)
+    doc.setFontSize(14);
+    doc.setTextColor(15, 23, 42);
+    doc.setFont("helvetica", "bold");
+    doc.text("1. AI Executive Summary & ATC Terms", 14, 85);
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(10);
+    
+    let currentY = 92;
+    if (buyerTerms && buyerTerms.length > 0) {
+      buyerTerms.forEach((term: string, idx: number) => {
+        const splitText = doc.splitTextToSize(`${idx + 1}. ${term}`, pageWidth - 28);
+        doc.text(splitText, 14, currentY);
+        currentY += (splitText.length * 5) + 3;
+      });
+    } else {
+      doc.text("No specific Buyer Added Terms detected by AI.", 14, currentY);
+      currentY += 10;
+    }
 
-    (doc as any).autoTable({
-      startY: 55,
-      head: [['Cost Component', 'Amount']],
-      body: financials,
-      theme: 'grid',
-      headStyles: { fillColor: [212, 175, 55] }, 
+    currentY += 10; // Padding before next section
+
+    // 4. Compliance & Vault Readiness (From Compliance Tab)
+    doc.setFontSize(14);
+    doc.setFont("helvetica", "bold");
+    doc.text("2. Document Compliance Validation", 14, currentY);
+    
+    const complianceData = mandatoryDocs.map((docName: string) => {
+      const reqDocString = docName.toLowerCase();
+      const inVault = vaultLibrary.some(vaultDoc => {
+          const vaultKeywords = vaultDoc.toLowerCase().replace(/[^a-z0-9\s]/g, '').split(' ').filter(w => w.length > 2);
+          return vaultKeywords.some(kw => reqDocString.includes(kw));
+      });
+      return [docName, inVault ? 'Verified in Vault' : 'Missing / Required'];
     });
 
-    doc.save(`Bid_Analysis_${parsedMetadata.bidNumber || 'Draft'}.pdf`);
+    // Add EMD Status to compliance table
+    complianceData.push(['EMD Payment Proof', liveCalculations.emd > 0 ? `Required (₹${Math.round(liveCalculations.emd).toLocaleString()})` : 'Exempted']);
+
+    autoTable(doc, {
+      startY: currentY + 5,
+      head: [['Required Document', 'System Verification Status']],
+      body: complianceData,
+      theme: 'grid',
+      headStyles: { fillColor: [16, 185, 129], textColor: [255, 255, 255] }, // Emerald 500
+      styles: { fontSize: 9 }
+    });
+
+    // 5. Technical Match Table (From Commercials Tab)
+    doc.addPage();
+    doc.setFontSize(14);
+    doc.setTextColor(15, 23, 42);
+    doc.text("3. Technical Compliance & SKU Matrix", 14, 22);
+    
+    const techData = technicalResults.map((item: any) => [
+      item.rfpLineItem.name,
+      item.rfpLineItem.quantity,
+      item.selectedSku?.skuId || "N/A",
+      disqualifiedItems.includes(item.rfpLineItem.name) ? "DISQUALIFIED" : `${item.selectedSku?.matchPercentage || 0}%`
+    ]);
+
+    autoTable(doc, {
+      startY: 28,
+      head: [['RFP Requirement', 'Qty', 'Matched Internal SKU', 'System Match Score']],
+      body: techData,
+      theme: 'grid',
+      headStyles: { fillColor: [30, 41, 59], textColor: [255, 255, 255] }, // Slate 800
+      alternateRowStyles: { fillColor: [248, 250, 252] },
+      styles: { fontSize: 9 }
+    });
+
+    // 6. Financial BoQ Table (From Commercials Tab)
+    const finalY = (doc as any).lastAutoTable.finalY || 90;
+    
+    // Check if we need a new page for financials
+    if (finalY > 220) {
+       doc.addPage();
+       currentY = 22;
+    } else {
+       currentY = finalY + 15;
+    }
+
+    doc.setFontSize(14);
+    doc.text("4. Financial Bill of Quantities (BoQ)", 14, currentY);
+
+    const finData = [
+      ["Base Material Cost (Valid SKUs)", `Rs. ${Math.round(liveCalculations.materialBase).toLocaleString()}`],
+      ["Testing & Acceptance Certification", `Rs. ${Math.round(liveCalculations.testing).toLocaleString()}`],
+      ["Logistics (Distance + Buffer)", `Rs. ${Math.round(liveCalculations.logistics).toLocaleString()}`],
+      ["Total GST Applicable", `Rs. ${Math.round(liveCalculations.gst).toLocaleString()}`],
+      ["GeM Platform Brokerage Fee", `Rs. ${Math.round(liveCalculations.gemFee).toLocaleString()}`],
+      ["EMD Capital Provision", `Rs. ${Math.round(liveCalculations.emd).toLocaleString()}`],
+      ["EPBG Capital Provision", `Rs. ${Math.round(liveCalculations.epbg).toLocaleString()}`],
+      [`Net Profit Target (${profitMargin}%)`, `Rs. ${Math.round(liveCalculations.profit).toLocaleString()}`],
+      ["FINAL AUTHORIZED BID VALUE", `Rs. ${Math.round(liveCalculations.finalTotal).toLocaleString()}`]
+    ];
+
+    autoTable(doc, {
+      startY: currentY + 5,
+      head: [['Cost Component', 'Calculated Amount (INR)']],
+      body: finData,
+      theme: 'grid',
+      headStyles: { fillColor: [212, 175, 55], textColor: [15, 23, 42] }, // Gold 500
+      styles: { fontSize: 10 },
+      didParseCell: function(data: any) {
+        // Highlight the final row in bold green
+        if (data.row.index === finData.length - 1) {
+          data.cell.styles.fontStyle = 'bold';
+          data.cell.styles.textColor = [16, 185, 129]; // Emerald 500
+        }
+      }
+    });
+
+    return doc;
+  };
+
+  const handleDownloadPDF = () => {
+    const doc = generatePremiumPDF();
+    doc.save(`TenderFlow_Analysis_${parsedMetadata.bidNumber || rfp.id}.pdf`);
   };
 
   const handleShare = async () => {
-    const shareData = {
-      title: 'Bid Analysis Report',
-      text: `Reviewing bid for ${rfp.organisation}. Final Value: Rs. ${Math.round(liveCalculations.finalTotal).toLocaleString()}`,
-      url: window.location.href 
-    };
+    const doc = generatePremiumPDF();
+    const pdfBlob = doc.output('blob');
+    const file = new File([pdfBlob], `TenderFlow_Analysis_${parsedMetadata.bidNumber || rfp.id}.pdf`, { type: 'application/pdf' });
 
-    if (navigator.share) {
-      try { await navigator.share(shareData); } catch (err) { console.log('Share canceled'); }
-    } else {
-      const subject = encodeURIComponent(`Bid Analysis: ${rfp.organisation}`);
-      const body = encodeURIComponent(`Here is the final authorized bid value: Rs. ${Math.round(liveCalculations.finalTotal).toLocaleString()}`);
-      window.open(`mailto:?subject=${subject}&body=${body}`);
-    }
+    if (navigator.canShare && navigator.canShare({ files: [file] })) {
+      try {
+        await navigator.share({
+          title: `Bid Analysis: ${parsedMetadata.bidNumber || rfp.id}`,
+          text: `Here is the finalized AI Bid Analysis. Total Value: ₹${Math.round(liveCalculations.finalTotal).toLocaleString()}`,
+          files: [file]
+        });
+        return;
+      } catch (err) {
+        console.log('User cancelled share.', err);
+      }
+    } 
+    
+    alert("Direct file sharing not supported on this device. The PDF will be downloaded instead.");
+    handleDownloadPDF();
   };
 
+  // --- ACTIONS ---
   const handleSaveOverride = (itemName: string, unitPrice: number) => {
     setManualOverrides(prev => ({ ...prev, [itemName]: unitPrice }));
     setEditingItem(null);
@@ -213,19 +332,15 @@ useEffect(() => {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ url, fileName: name })
       });
-      
       const data = await res.json();
-
       if (data.success) {
         setBlankDocs(prev => prev.map(d => 
           d.id === docId ? { ...d, status: 'CONVERTED_TO_DOCX', docxUrl: data.docxUrl } : d
         ));
       } else {
-        alert("Conversion failed. Check backend console.");
         setBlankDocs(prev => prev.map(d => d.id === docId ? { ...d, status: 'DETECTED' } : d));
       }
     } catch (err) {
-      alert("Network error during conversion.");
       setBlankDocs(prev => prev.map(d => d.id === docId ? { ...d, status: 'DETECTED' } : d));
     }
   };
@@ -247,16 +362,14 @@ useEffect(() => {
           <div className="w-12 h-12 rounded-xl bg-blue-500/10 flex items-center justify-center">
             <MapPin className="w-6 h-6 text-blue-500" />
           </div>
-        
-        <div>
-            <h3 className="text-[13px] font-black text-slate-500 uppercase tracking-widest">Primary Consignee Location</h3>
+          <div>
+            <h3 className="text-[13px] font-black text-slate-400 uppercase tracking-widest">Primary Consignee Location</h3>
             <p className="text-[15px] font-bold text-white">
                {(parsedData.consignee || parsedMetadata.officeName || "Multiple Locations")}
             </p>
           </div>
         </div>
         <div className="flex gap-8 text-right">
-          {/* P13: Restored the dual-variable Rate x Distance logistics formula UI */}
           <div>
             <label className="text-[10px] uppercase text-slate-400 font-bold block mb-2">Logistics Rate (₹/Km)</label>
             <div className="flex items-center gap-3">
@@ -287,11 +400,11 @@ useEffect(() => {
       <div className="grid grid-cols-2 gap-6 items-start">
         {/* LEFT: TECHNICAL SKU MATCHING */}
         <div className="bg-slate-900/40 backdrop-blur-md border border-slate-800/80 rounded-[2rem] p-6 flex flex-col shadow-xl">
-          <h3 className="text-xs font-black text-slate-500 uppercase tracking-widest mb-4 flex items-center gap-2">
+          <h3 className="text-xs font-black text-slate-300 uppercase tracking-widest mb-4 flex items-center gap-2">
              <Scale className="w-4 h-4" /> Technical SKU Matching
           </h3>
           <div className="space-y-4">
-                  {technicalResults.map((analysis: any, idx: number) => {
+            {technicalResults.map((analysis: any, idx: number) => {
                const itemName = analysis.rfpLineItem.name;
                const isDisqualified = disqualifiedItems.includes(itemName);
                const isOverridden = manualOverrides[itemName] !== undefined;
@@ -302,12 +415,11 @@ useEffect(() => {
                     <div className="flex justify-between items-start mb-3">
                       <div className="space-y-1">
                         <h4 className="font-bold text-white text-sm uppercase">{itemName}</h4>
-                        <div className="flex gap-2 text-[10px] font-bold text-slate-500 uppercase">
+                        <div className="flex gap-2 text-[10px] font-bold text-slate-400 uppercase">
                           <span>Req Qty: {analysis.rfpLineItem.quantity} | Spec: {analysis.rfpLineItem.technicalSpecs?.[0] || "Standard"}</span>
                         </div>
                       </div>
                       
-                      {/* P12: Split Disqualify and Edit actions */}
                       <div className="flex gap-2">
                         <button 
                           onClick={() => setDisqualifiedItems(prev => isDisqualified ? prev.filter(i => i !== itemName) : [...prev, itemName])} 
@@ -327,28 +439,40 @@ useEffect(() => {
                       <div className="flex items-center gap-3">
                         <div className="text-emerald-500"><CheckCircle2 className="w-4 h-4" /></div>
                         <div>
-                          <p className="text-[10px] font-black text-slate-400 uppercase tracking-wider">SKU: {analysis.selectedSku?.skuId || 'No Match'}</p>
-                          <p className="text-[9px] text-slate-500 font-bold uppercase">Stock: {analysis.selectedSku?.availableQuantity || 0}</p>
+                          <p className="text-[10px] font-black text-slate-300 uppercase tracking-wider">SKU: {analysis.selectedSku?.skuId || 'No Match'}</p>
+                          <p className="text-[9px] text-slate-400 font-bold uppercase">Stock: {analysis.selectedSku?.availableQuantity || 0}</p>
                         </div>
                       </div>
                       <div className="text-right">
-                          <p className="text-[9px] text-slate-500 font-black uppercase">Unit Rate</p>
+                          <p className="text-[9px] text-slate-400 font-black uppercase">Unit Rate</p>
                           <p className={`font-mono text-sm font-bold ${isDisqualified ? 'text-red-500 line-through' : isOverridden ? 'text-gold-500' : 'text-emerald-400'}`}>
                             ₹{isDisqualified ? '0' : currentPrice.toLocaleString()}
                           </p>
                       </div>
                     </div>
+
+                    {/* NEW: Match % directly on the card */}
+                    {!isDisqualified && (
+                      <div className="mt-2 text-right">
+                        <span className={`text-[10px] font-black uppercase tracking-widest px-2 py-1 rounded bg-slate-900 border ${
+                          (analysis.selectedSku?.matchPercentage || 0) > 80 ? 'text-emerald-400 border-emerald-500/30' : 'text-amber-400 border-amber-500/30'
+                        }`}>
+                          Spec Match: {analysis.selectedSku?.matchPercentage || 0}%
+                        </span>
+                      </div>
+                    )}
+
                     <div className="mt-4 border-t border-slate-800/50 pt-3">
                       <button
                         onClick={() => setExpandedTechItem(expandedTechItem === idx ? null : idx)}
                         className="text-[9px] font-black text-blue-400 uppercase tracking-widest hover:text-white flex items-center gap-1 transition-colors"
                       >
-                        {expandedTechItem === idx ? '▼ Hide Comparison Table' : '▶ View Top 3 Alternatives'}
+                        {expandedTechItem === idx ? '▼ Hide Comparison Table' : '▶ View Top alternatives'}
                       </button>
                       {expandedTechItem === idx && (
                         <div className="mt-3 bg-slate-950/80 border border-slate-800 rounded-xl overflow-hidden animate-in slide-in-from-top-2">
                           <table className="w-full text-left text-[9px]">
-                            <thead className="bg-slate-900 text-slate-400 uppercase">
+                            <thead className="bg-slate-900 text-slate-300 uppercase">
                               <tr>
                                 <th className="p-2 pl-4">Rank</th>
                                 <th className="p-2">SKU ID</th>
@@ -358,8 +482,8 @@ useEffect(() => {
                             <tbody>
                               {(analysis.top3Recommendations || []).map((rec: any, rIdx: number) => (
                                 <tr key={rIdx} className="border-t border-slate-800/50">
-                                  <td className="p-2 pl-4 text-slate-500 font-bold">#{rIdx + 1}</td>
-                                  <td className="p-2 text-slate-300">{rec.skuId}</td>
+                                  <td className="p-2 pl-4 text-slate-400 font-bold">#{rIdx + 1}</td>
+                                  <td className="p-2 text-slate-200">{rec.skuId}</td>
                                   <td className="p-2 pr-4 text-right font-bold text-emerald-400">{rec.matchPercentage}%</td>
                                 </tr>
                               ))}
@@ -378,7 +502,7 @@ useEffect(() => {
         <div className="bg-slate-900/40 backdrop-blur-md border border-slate-800/80 rounded-[2rem] p-8 flex flex-col justify-center relative overflow-hidden shadow-xl sticky top-0">
           <div className="space-y-6 relative z-10">
             <div>
-              <label className="text-[10px] uppercase text-slate-400 font-bold block mb-2">Profit Margin (%)</label>
+              <label className="text-[10px] uppercase text-slate-300 font-bold block mb-2">Profit Margin (%)</label>
               <input 
                 type="range" min="5" max="50" 
                 value={profitMargin} 
@@ -388,9 +512,8 @@ useEffect(() => {
               <div className="text-right mt-1 text-[10px] font-mono text-emerald-400">{profitMargin}% Margin Applied</div>
             </div>
 
-            {/* NEW: Testing Provision Slider */}
             <div>
-              <label className="text-[10px] uppercase text-slate-400 font-bold block mb-2 mt-4">Testing & Certification Provision (₹)</label>
+              <label className="text-[10px] uppercase text-slate-300 font-bold block mb-2 mt-4">Testing & Certification Provision (₹)</label>
               <input 
                 type="range" min="0" max="100000" step="1000"
                 value={testingProvision} 
@@ -416,7 +539,7 @@ useEffect(() => {
             <div className="flex justify-between items-end">
               <div>
                 <span className="text-xs font-black uppercase text-gold-500 tracking-widest block">Final Bid Value</span>
-                <span className="text-[9px] text-slate-500 uppercase tracking-wider">(Inclusive of Taxes)</span>
+                <span className="text-[9px] text-slate-400 uppercase tracking-wider">(Inclusive of Taxes)</span>
               </div>
               <span className="text-4xl font-mono font-bold text-white">₹{Math.round(liveCalculations.finalTotal).toLocaleString()}</span>
             </div>
@@ -428,7 +551,6 @@ useEffect(() => {
 
   const renderCompliance = () => (
     <div className="flex flex-col gap-6 w-full">
-      
       <div className="grid grid-cols-2 gap-6 items-start w-full">
       {/* LEFT COLUMN */}
       <div className="space-y-6">
@@ -448,7 +570,7 @@ useEffect(() => {
         </div>
 
         <div className="bg-slate-900/40 backdrop-blur-md border border-slate-800/80 rounded-[2rem] p-6 shadow-xl">
-          <h3 className="text-xs font-black text-slate-500 uppercase tracking-widest mb-4 flex items-center gap-2">
+          <h3 className="text-xs font-black text-slate-300 uppercase tracking-widest mb-4 flex items-center gap-2">
             <ShieldCheck className="w-4 h-4" /> Required Docs vs. Vault
           </h3>
           <div className="space-y-3">
@@ -481,7 +603,7 @@ useEffect(() => {
                {liveCalculations.emd > 0 ? (
                  <span className="text-[9px] font-black uppercase px-3 py-1.5 rounded-lg bg-amber-500/10 text-amber-400">Action Required: Pay ₹{Math.round(liveCalculations.emd).toLocaleString()}</span>
                ) : (
-                 <span className="text-[9px] font-black uppercase px-3 py-1.5 rounded-lg bg-slate-800 text-slate-500">Exempted by Buyer</span>
+                 <span className="text-[9px] font-black uppercase px-3 py-1.5 rounded-lg bg-slate-800 text-slate-400">Exempted by Buyer</span>
                )}
              </div>
           </div>
@@ -501,21 +623,23 @@ useEffect(() => {
                </p>
             </div>
             
-            <button 
-               onClick={handleConvertAll}
-               className="px-5 py-3 bg-blue-600 hover:bg-blue-500 text-white text-[9px] font-black uppercase tracking-widest rounded-xl transition-all flex items-center gap-2 shadow-lg"
-            >
-               <RefreshCw className="w-3 h-3" /> Process All
-            </button>
+            <div className="flex gap-2">
+              <button 
+                 onClick={handleConvertAll}
+                 className="px-5 py-2 bg-blue-600 hover:bg-blue-500 text-white text-[9px] font-black uppercase tracking-widest rounded-xl transition-all flex items-center gap-2 shadow-lg"
+              >
+                 <RefreshCw className="w-3 h-3" /> Process All
+              </button>
+            </div>
          </div>
          
-         <div className="p-6 space-y-4 z-10">
+         <div className="p-6 space-y-4 z-10 overflow-y-auto max-h-[500px]">
             {blankDocs.map((doc: BlankDoc, idx: number) => (
                <div key={idx} className="bg-slate-950/80 border border-slate-800/80 p-5 rounded-2xl flex flex-col gap-4 group">
                   <div className="flex justify-between items-start">
                      <div>
                         <p className="text-xs font-bold text-white">{doc.name}</p>
-                        <p className="text-[9px] font-black uppercase text-slate-500 mt-1.5">
+                        <p className="text-[9px] font-black uppercase text-slate-400 mt-1.5">
                            Status: <span className={doc.status === 'CONVERTED_TO_DOCX' ? 'text-emerald-500' : 'text-amber-500'}>{doc.status.replace(/_/g, ' ')}</span>
                         </p>
                      </div>
@@ -559,7 +683,7 @@ useEffect(() => {
       </div>
       </div>
     <div className="bg-slate-900/40 backdrop-blur-md border border-slate-800/80 rounded-[2rem] p-6 shadow-xl w-full">
-          <h3 className="text-xs font-black text-slate-500 uppercase tracking-widest mb-6 flex items-center gap-2">
+          <h3 className="text-xs font-black text-slate-300 uppercase tracking-widest mb-6 flex items-center gap-2">
             <BrainCircuit className="w-4 h-4 text-purple-500" /> Executive AI Summary & ATC Rules
           </h3>
           
@@ -570,11 +694,11 @@ useEffect(() => {
                   <div className="w-6 h-6 rounded-full bg-purple-500/10 text-purple-400 flex items-center justify-center text-xs font-bold shrink-0">
                     {idx + 1}
                   </div>
-                  <span className="text-sm text-slate-300 leading-relaxed font-medium">{term}</span>
+                  <span className="text-sm text-slate-200 leading-relaxed font-medium">{term}</span>
                 </div>
               ))
             ) : (
-              <div className="text-sm text-slate-500 italic p-4">No specific Buyer Added Terms detected by AI.</div>
+              <div className="text-sm text-slate-400 italic p-4">No specific Buyer Added Terms detected by AI.</div>
             )}
           </div>
       </div>
@@ -601,7 +725,7 @@ useEffect(() => {
                 Bid <span className="text-gold-500">Analysis</span> Console
               </h1>
             </div>
-            <div className="flex gap-4 text-[10px] text-slate-500 font-bold uppercase tracking-[0.2em] ml-8">
+            <div className="flex gap-4 text-[10px] text-slate-400 font-bold uppercase tracking-[0.2em] ml-8">
                <span className="text-gold-500">Bid Number: <span className="text-white">{parsedMetadata.bidNumber || "Draft RFP"}</span></span>
                <span className="text-white bg-slate-800 px-2 py-0.5 rounded">{parsedMetadata.type_of_bid || parsedMetadata.bidType || "Standard Bid"}</span>
             </div>
@@ -609,7 +733,7 @@ useEffect(() => {
           
           <div className="flex gap-4 items-center">
              <div className="bg-slate-900/50 backdrop-blur-md border border-slate-800/80 px-6 py-2.5 rounded-2xl text-right mr-4 shadow-inner">
-                <span className="block text-[8px] text-slate-500 font-black uppercase tracking-widest italic">Live Adjusted Bid</span>
+                <span className="block text-[8px] text-slate-400 font-black uppercase tracking-widest italic">Live Adjusted Bid</span>
                 <span className="text-2xl font-black text-gold-500 drop-shadow-md">₹{Math.round(liveCalculations.finalTotal).toLocaleString()}</span>
              </div>
              
@@ -617,7 +741,7 @@ useEffect(() => {
                Share 🔗
              </button>
              
-             <button onClick={handleDownloadPDF} className="bg-slate-800 text-slate-300 border border-slate-700 hover:bg-slate-700 hover:text-white px-6 py-3.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all">
+             <button onClick={handleDownloadPDF} className="bg-amber-500 text-slate-950 hover:bg-white px-6 py-3.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all shadow-[0_0_20px_rgba(245,158,11,0.4)]">
                Export PDF
              </button>
           </div>
@@ -675,7 +799,7 @@ useEffect(() => {
             <h2 className="text-xl font-black text-white uppercase italic mb-6">Manual <span className="text-gold-500">Override</span></h2>
             <div className="space-y-4">
                <div>
-                  <label className="text-[9px] font-black text-slate-500 uppercase tracking-widest ml-1">Set Manual Unit Rate (₹)</label>
+                  <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-1">Set Manual Unit Rate (₹)</label>
                   <input type="number" autoFocus placeholder="0.00" className="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-3 text-lg text-white outline-none focus:border-gold-500 font-mono mt-2"
                     onKeyDown={(e) => {
                       if (e.key === 'Enter') handleSaveOverride(editingItem.rfpLineItem.name, Number(e.currentTarget.value));
@@ -683,7 +807,7 @@ useEffect(() => {
                   />
                </div>
                <div className="flex gap-3 mt-6">
-                  <button onClick={() => setEditingItem(null)} className="flex-1 py-3 bg-slate-800 text-slate-400 rounded-xl text-[10px] font-black uppercase">Cancel</button>
+                  <button onClick={() => setEditingItem(null)} className="flex-1 py-3 bg-slate-800 text-slate-300 rounded-xl text-[10px] font-black uppercase">Cancel</button>
                   <button onClick={() => {
                     const val = (document.querySelector('input[type="number"]') as HTMLInputElement).value;
                     handleSaveOverride(editingItem.rfpLineItem.name, Number(val));

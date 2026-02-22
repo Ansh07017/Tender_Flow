@@ -139,7 +139,9 @@ const App: React.FC = () => {
     const triggerAutomatedDiscovery = async () => {
       const heroProduct = [...inventory]
         .filter(item => item.availableQuantity > 0)
-        .sort((a, b) => b.availableQuantity - a.availableQuantity)[0];
+        .sort((a, b) => (b.availableQuantity * b.unitSalesPrice) - (a.availableQuantity * a.unitSalesPrice))[0];
+      
+      if (!heroProduct) return;
       
       if (!heroProduct) return;
 
@@ -343,7 +345,8 @@ const processRfp = async (rfpId: string, override?: Rfp) => {
         return (
           <ConfigScreen 
             config={config} 
-            setConfig={setConfig} 
+            setConfig={setConfig}
+            inventory={inventory}
             onOpenVault={() => setCurrentView('vault')}
             onLogout={handleLogout}       
             onChangePin={handleChangePin} 

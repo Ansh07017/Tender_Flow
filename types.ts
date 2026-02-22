@@ -43,7 +43,11 @@ export interface BlankDoc {
   type: string;
   docxUrl?: string;
 }
-
+export interface AddItemModalProps {
+  onClose: () => void;
+  onSave: (item: SKU) => void;
+  existingItem?: SKU; // <--- ADD THIS LINE
+}
 export interface SKU {
   skuId: string;
   productName: string;
@@ -258,10 +262,15 @@ export interface CompanyConfig {
   companyAddress: string;
   gstin: string;
   pan: string;
+  domain: string;
+  turnover: string;          
+  turnoverYear: string;          
+  oemStatus:string;
+
 }
 export interface FinancialConditions {
-  epbg: string;        // "Required" | "Not Required" | "No"
-  emd: string;        // "Required" | "No"
+  epbg: string;
+  emd: string;
   paymentTerms: string;
 }
 

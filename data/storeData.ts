@@ -415,18 +415,6 @@ export const productInventory: SKU[] = [
     gstRate: 18, brokerage: 1.5, minMarginPercent: 15, isActive: true, isCustomMadePossible: true, isComplianceReady: true,
   },
   {
-    skuId: "SRV-SITC-NET-PROJ",
-    productName: "Supply, Installation, Testing and Commissioning (SITC) of Complete Network",
-    productCategory: "Supply, Installation, Testing and Commissioning of complete project",
-    productSubCategory: "Professional Services",
-    oemBrand: "Internal Service Division",
-    specification: { "Scope": "Physical Installation, Configuration, Fiber Splicing, Testing, Documentation", "Manpower": "Certified Network Engineers", "Duration": "As per project site" },
-    availableQuantity: 999,
-    warehouseLocation: "Jalandhar, PB", warehouseCode: "JAL-01", warehouseLat: 31.3260, warehouseLon: 75.5762,
-    truckType: 'LCV', leadTime: 1, costPrice: 150000, unitSalesPrice: 250000, bulkSalesPrice: 220000,
-    gstRate: 18, brokerage: 2.0, minMarginPercent: 25, isActive: true, isCustomMadePossible: true, isComplianceReady: true,
-  },
-  {
     skuId: "PLB-FAN-EXH-450-V2Q2",
     productName: "Propeller Type AC Ventilating Fan - Heavy Duty Exhaust (V2) as per IS 2312 (Q2)",
     productCategory: "Propeller Type AC Ventilating Fans - Exhaust Fans",
