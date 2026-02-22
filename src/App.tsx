@@ -153,11 +153,14 @@ const App: React.FC = () => {
           body: JSON.stringify({ 
             portal: 'gem', 
             category: heroProduct.productCategory, 
-            filters: { ...config.discoveryFilters, bypassFilters: true },
+            filters: { 
+              ...config.discoveryFilters, 
+              bypassFilters: true,
+              categories: [heroProduct.productCategory]
+            },
             inventory 
           }),
         });
-
         const result = await response.json();
         if (result.success) {
           setDiscoveryResults(result.data);

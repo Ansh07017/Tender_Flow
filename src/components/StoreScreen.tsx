@@ -1,8 +1,8 @@
 import * as React from 'react';
 import { useState, useMemo, useRef } from 'react';
-import { SKU,AddItemModalProps } from '../../types';
+import { SKU } from '../../types';
 import { AddItemModal } from './AddItemModal';
-import { Trash2, FileSpreadsheet, Plus, Upload, Search } from 'lucide-react';
+import { Trash2, FileSpreadsheet, Plus, Search } from 'lucide-react';
 
 interface StoreScreenProps {
   inventory: SKU[];
@@ -103,17 +103,17 @@ export const StoreScreen: React.FC<StoreScreenProps> = ({ inventory, setInventor
   };
 
   return (
-    <div className={`flex flex-col bg-slate-900/40 border border-slate-800 rounded-3xl backdrop-blur-xl shadow-2xl overflow-hidden transition-all duration-500 ease-in-out ${isExpanded ? 'fixed inset-4 z-50' : 'h-[600px] w-full'}`}>
+    <div className={`flex flex-col bg-slate-900/40 border border-slate-800 rounded-3xl backdrop-blur-xl shadow-2xl overflow-hidden transition-all duration-500 ease-in-out ${isExpanded ? 'fixed inset-4 z-50' : 'h-full w-full'}`}>
       
       {/* HEADER */}
       <div className="shrink-0 p-6 border-b border-slate-800 flex justify-between items-center bg-slate-900/60">
         <div>
-          <h2 className="text-xl font-black text-white flex items-center gap-3 tracking-tight">
-            Master Inventory
+          <h1 className="text-4xl font-black italic tracking-tighter text-white uppercase drop-shadow-md">
+            Master<span className="text-gold-500"> Inventory  </span>
             <span className="px-2.5 py-1 bg-blue-500/10 text-blue-400 text-[10px] uppercase tracking-widest rounded-md border border-blue-500/20">
               Live DB
             </span>
-          </h2>
+          </h1>
           <p className="text-xs text-slate-400 mt-1">Manage SKUs, Pricing, and Stock Availability</p>
         </div>
 

@@ -869,7 +869,7 @@ export const productInventory: SKU[] = [
     productSubCategory: "Lighting Accessories",
     oemBrand: "Polycab",
     specification: { "Type": "Slanting", "Base": "B22", "Material": "Urea Formaldehyde", "Standard": "IS 1258" },
-    availableQuantity: 15000,
+    availableQuantity: 4000,
     warehouseLocation: "Jalandhar, PB", warehouseCode: "JAL-01", warehouseLat: 31.3260, warehouseLon: 75.5762,
     truckType: 'LCV', leadTime: 2, costPrice: 8, unitSalesPrice: 18, bulkSalesPrice: 14,
     gstRate: 18, brokerage: 0.5, minMarginPercent: 30, isActive: true, isCustomMadePossible: false, isComplianceReady: true,

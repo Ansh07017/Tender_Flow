@@ -31,7 +31,7 @@ export const LogScreen: React.FC<{ logs: LogEntry[] }> = ({ logs }) => {
       {/* 1. TERMINAL HEADER */}
       <div className="shrink-0 h-[15%] min-h-[100px] bg-slate-900/40 border border-slate-800 rounded-3xl p-6 flex items-center justify-between backdrop-blur-xl">
         <div className="space-y-1">
-          <h1 className="text-3xl font-black italic tracking-tighter text-transparent bg-clip-text bg-gradient-to-r from-white to-gold-500 uppercase">
+          <h1 className="text-4xl font-black italic tracking-tighter text-white uppercase drop-shadow-md">
             Execution <span className="text-gold-500">Logs</span>
           </h1>
           <p className="text-[10px] text-slate-500 font-bold leading-relaxed max-w-xs uppercase tracking-widest">

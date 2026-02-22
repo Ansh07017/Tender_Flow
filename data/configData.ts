@@ -16,7 +16,7 @@ export const initialConfig: AppConfig = {
     },
     {
       id: 'DIR-002',
-      name: 'Operations Head',
+      name: 'Rajan Singh',
       designation: 'Director of Logistics',
       din: '09124432',
     },

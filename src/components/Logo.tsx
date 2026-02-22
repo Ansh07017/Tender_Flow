@@ -1,4 +1,3 @@
-import React from 'react';
 import logoImage from '../assets/TenderFlow.png';
 
 export const Logo = () => (
