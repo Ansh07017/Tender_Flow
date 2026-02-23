@@ -62,7 +62,7 @@ export const FrontPage: React.FC<FrontPageProps> = ({
           
           <div className="flex gap-4">
   {[
-    { label: 'Response Volume', val: '+430%', subtext: 'Annual Submissions', color: 'text-emerald-400', glow: 'shadow-[0_0_15px_rgba(52,211,153,0.1)]' },
+    { label: 'Response Volume', val: '+320%', subtext: 'Annual Submissions', color: 'text-emerald-400', glow: 'shadow-[0_0_15px_rgba(52,211,153,0.1)]' },
     { label: 'Turnaround Time', val: '< 1 hr', subtext: 'Down from 1 week', color: 'text-blue-400', glow: 'shadow-[0_0_15px_rgba(96,165,250,0.1)]' },
     { label: 'Tech Match Speed', val: '96%', subtext: 'Faster processing', color: 'text-gold-400', glow: 'shadow-[0_0_15px_rgba(250,204,21,0.1)]' }
   ].map((stat, idx) => (
