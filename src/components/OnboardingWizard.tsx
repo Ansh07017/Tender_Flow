@@ -72,7 +72,6 @@ export const OnboardingWizard: React.FC<OnboardingWizardProps> = ({
   onStepChange,
   onBack 
 }) => {
-  // 🚨 FIXED: OTP Guard State for Existing Users changing their PIN
   const [isVerifiedForReset, setIsVerifiedForReset] = useState(!isSetupComplete);
   const [otpStage, setOtpStage] = useState<'IDLE' | 'SENT'>('IDLE');
   const [resetOtp, setResetOtp] = useState('');
@@ -164,7 +163,6 @@ export const OnboardingWizard: React.FC<OnboardingWizardProps> = ({
       });
       if (!res.ok) throw new Error("Failed to save PIN.");
       
-      // 🚨 FIXED: If changing an existing PIN, don't force 2FA setup again!
       if (isSetupComplete) {
          onComplete();
       } else {
@@ -260,7 +258,7 @@ export const OnboardingWizard: React.FC<OnboardingWizardProps> = ({
       </div>
 
       {/* RIGHT SIDE: INTERACTIVE SETUP */}
-      <div className="w-full md:w-1/2 flex items-center justify-center p-8 bg-slate-950 relative">
+      <div className="w-full md:w-1/2 flex flex-col p-8 bg-slate-950 relative overflow-y-auto scrollbar-hide">
         
         <button 
           onClick={onBack} 
@@ -269,7 +267,10 @@ export const OnboardingWizard: React.FC<OnboardingWizardProps> = ({
           <ArrowLeft className="w-4 h-4" /> <span className="text-xs font-bold uppercase tracking-widest">{isSetupComplete ? 'Cancel Update' : 'Back to Login'}</span>
         </button>
 
-        <div className="w-full max-w-md relative z-10">
+        {/* TOP SPACER FOR PERFECT CENTERING */}
+        <div className="flex-grow"></div>
+
+        <div className="w-full max-w-md mx-auto relative z-10 shrink-0 py-8">
           <AnimatePresence mode="wait">
             
             {step === 'PIN_SETUP' && !isVerifiedForReset && (
@@ -382,16 +383,20 @@ export const OnboardingWizard: React.FC<OnboardingWizardProps> = ({
             </motion.div>
           )}
         </div>
-      </div>
 
-      {/* FOOTER */}
-      <footer className="absolute bottom-6 w-full flex justify-center items-center pointer-events-none">
-        <div className="bg-slate-900/40 backdrop-blur-md border border-white/5 px-6 py-2 rounded-full shadow-2xl">
-          <p className="text-[10px] md:text-xs font-medium text-slate-500 tracking-[0.2em] uppercase">
-            System developed by <span className="text-blue-400 font-bold">Ansh Pratap Singh</span>
-          </p>
-        </div>
-      </footer>
+        {/* BOTTOM SPACER FOR PERFECT CENTERING */}
+        <div className="flex-grow"></div>
+
+        {/* FOOTER */}
+        <footer className="w-full flex justify-center items-center pointer-events-none shrink-0 pb-2">
+          <div className="bg-slate-900/40 backdrop-blur-md border border-white/5 px-6 py-2 rounded-full shadow-2xl">
+            <p className="text-[10px] md:text-xs font-medium text-slate-500 tracking-[0.2em] uppercase">
+              System developed by <span className="text-blue-400 font-bold">Ansh Pratap Singh</span>
+            </p>
+          </div>
+        </footer>
+
+      </div>
     </div>
   );
 };

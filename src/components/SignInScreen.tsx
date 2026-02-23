@@ -60,7 +60,6 @@ const BubbleInput = ({ value, onChange, onComplete, secure = false, disabled = f
 export const SignInScreen: React.FC<SignInScreenProps> = ({ onAuthSuccess, initialEmail }) => {
   const [email, setEmail] = useState(initialEmail || '');
   
-  // 🚨 FIXED: Expanded State Machine
   const [mode, setMode] = useState<'EMAIL_ENTRY' | 'PIN_ENTRY' | 'OTP_ENTRY' | 'TWO_FA_ENTRY' | 'RESET_PIN_ENTRY'>(
     initialEmail ? 'PIN_ENTRY' : 'EMAIL_ENTRY'
   );
@@ -138,7 +137,6 @@ export const SignInScreen: React.FC<SignInScreenProps> = ({ onAuthSuccess, initi
       const data = await res.json();
       
       if (data.success) {
-        // 🚨 FIXED: If this is a recovery, route to PIN reset, NOT vault unlock.
         if (otpPurpose === 'FORGOT_PIN') {
            setMode('RESET_PIN_ENTRY');
            setResetStep(1);
@@ -166,7 +164,6 @@ export const SignInScreen: React.FC<SignInScreenProps> = ({ onAuthSuccess, initi
       const data = await res.json();
       
       if (data.success) {
-        // 🚨 FIXED: Active 2FA Gateway checking
         if (data.requires2FA) {
            setMode('TWO_FA_ENTRY');
            setTwoFaCode('');
@@ -285,8 +282,12 @@ export const SignInScreen: React.FC<SignInScreenProps> = ({ onAuthSuccess, initi
       </div>
 
       {/* RIGHT HALF */}
-      <div className="w-full md:w-1/2 flex items-center justify-center p-8 bg-slate-950 relative">
-        <div className="w-full max-w-md">
+      <div className="w-full md:w-1/2 flex flex-col p-8 bg-slate-950 relative overflow-y-auto scrollbar-hide">
+        
+        {/* TOP SPACER FOR PERFECT CENTERING */}
+        <div className="flex-grow"></div>
+
+        <div className="w-full max-w-md mx-auto relative z-10 shrink-0 py-8">
           <AnimatePresence mode="wait">
             
             {/* STAGE 1: EMAIL */}
@@ -345,10 +346,13 @@ export const SignInScreen: React.FC<SignInScreenProps> = ({ onAuthSuccess, initi
               <motion.div 
                 key="pin"
                 initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }}
-                className="text-center space-y-8"
+                className="flex flex-col items-center text-center space-y-8 w-full"
               >
-                <div className="relative">
-                  <button onClick={() => setMode('EMAIL_ENTRY')} className="absolute -top-10 left-0 flex items-center gap-1 text-[10px] font-bold text-slate-500 uppercase tracking-widest hover:text-white transition-colors">
+                <div className="relative w-full flex flex-col items-center">
+                  <button 
+                    onClick={() => setMode('EMAIL_ENTRY')} 
+                    className="absolute -top-10 left-0 flex items-center gap-1 text-[10px] font-bold text-slate-500 uppercase tracking-widest hover:text-white transition-colors"
+                  >
                     <ArrowLeft className="w-3 h-3" /> Switch Account
                   </button>
                   <Lock className="w-12 h-12 text-blue-500 mx-auto mb-4" />
@@ -356,9 +360,11 @@ export const SignInScreen: React.FC<SignInScreenProps> = ({ onAuthSuccess, initi
                   <p className="text-slate-500">Identity confirmed for <span className="text-blue-400">{email}</span></p>
                 </div>
 
-                <BubbleInput value={pin} onChange={setPin} onComplete={handlePinLogin} secure={true} disabled={isLoading} />
+                <div className="w-full flex justify-center">
+                  <BubbleInput value={pin} onChange={setPin} onComplete={handlePinLogin} secure={true} disabled={isLoading} />
+                </div>
 
-                <div className="pt-4">
+                <div className="pt-4 w-full">
                   <button onClick={handleForgotPin} disabled={isLoading} className="text-slate-500 text-sm hover:text-amber-400 transition-colors disabled:opacity-50">
                     {isLoading ? "Sending Recovery Code..." : "Forgotten your PIN?"}
                   </button>
@@ -434,15 +440,20 @@ export const SignInScreen: React.FC<SignInScreenProps> = ({ onAuthSuccess, initi
             </motion.div>
           )}
         </div>
-      </div>
 
-      <footer className="absolute bottom-6 w-full flex justify-center items-center pointer-events-none">
-        <div className="bg-slate-900/40 backdrop-blur-md border border-white/5 px-6 py-2 rounded-full shadow-2xl">
-          <p className="text-[10px] md:text-xs font-medium text-slate-500 tracking-[0.2em] uppercase">
-            System developed by <span className="text-blue-400 font-bold">Ansh Pratap Singh</span>
-          </p>
-        </div>
-      </footer>
+        {/* BOTTOM SPACER FOR PERFECT CENTERING */}
+        <div className="flex-grow"></div>
+
+        {/* FOOTER */}
+        <footer className="w-full flex justify-center items-center pointer-events-none shrink-0 pb-2">
+          <div className="bg-slate-900/40 backdrop-blur-md border border-white/5 px-6 py-2 rounded-full shadow-2xl">
+            <p className="text-[10px] md:text-xs font-medium text-slate-500 tracking-[0.2em] uppercase">
+              System developed by <span className="text-blue-400 font-bold">Ansh Pratap Singh</span>
+            </p>
+          </div>
+        </footer>
+
+      </div>
     </div>
   );
 };

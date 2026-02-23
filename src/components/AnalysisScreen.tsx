@@ -784,11 +784,11 @@ export const AnalysisScreen: React.FC<AnalysisScreenProps> = ({ rfp, config, onB
   );
 
   return (
-    <div className="absolute inset-0 bg-slate-950 text-slate-200 overflow-hidden font-sans">
+      <div className="absolute inset-0 bg-slate-950 text-slate-200 overflow-hidden font-sans flex flex-col">
       <div className="absolute top-[-10%] right-[-10%] w-[800px] h-[800px] bg-gold-500/10 blur-[150px] rounded-full pointer-events-none z-0" />
       <div className="absolute bottom-[20%] left-[-10%] w-[600px] h-[600px] bg-blue-600/10 blur-[150px] rounded-full pointer-events-none z-0" />
 
-      <div className="h-full w-full overflow-y-auto scrollbar-hide px-8 pt-8 pb-32 relative z-10">
+      <div className="flex-grow w-full overflow-y-auto scrollbar-hide px-8 pt-8 pb-8 relative z-10">
         <div className="shrink-0 flex justify-between items-center mb-8 border-b border-slate-800/80 pb-6">
           <div>
             <div className="flex items-center gap-4 mb-2">
@@ -840,7 +840,7 @@ export const AnalysisScreen: React.FC<AnalysisScreenProps> = ({ rfp, config, onB
         </div>
       </div>
 
-      <div className="absolute bottom-0 left-0 right-0 h-24 bg-slate-950/80 backdrop-blur-xl border-t border-slate-800/80 flex items-center justify-between px-8 z-50">
+      <div className="shrink-0 relative h-24 bg-slate-950 border-t border-slate-800/80 flex items-center justify-between px-8 z-50">
          <button onClick={onCancel} className="bg-slate-800 text-slate-300 border border-slate-700 hover:bg-slate-700 hover:text-white px-5 py-3.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all">
             Abort Analysis
          </button>

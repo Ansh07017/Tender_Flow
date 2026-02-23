@@ -48,7 +48,7 @@ async function extractTextFromBuffer(buffer: ArrayBuffer): Promise<{ fullText: s
     let pageText = textContent.items
       .map((item: any) => item.str)
       .join(" ");
-    pageText = pageText.replace(/\*{7,}/g, (match) => "(Exact Location not visible due to security reasons)");
+    pageText = pageText.replace(/\*{7,}/g, (match) => "(Exact Location not visible due to security reasons) ");
     pageText = pageText.replace(/\*{5,}([A-Z\s,]+)/g, "$1");
     fullText += pageText + "\n";
 
