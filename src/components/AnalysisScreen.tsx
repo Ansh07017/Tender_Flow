@@ -1,6 +1,6 @@
 import * as React from 'react';
 import { useState, useMemo, useEffect } from 'react';
-import { Rfp, AppConfig, BlankDoc } from '../../types';
+import { Rfp, AppConfig, BlankDoc, VaultItem } from '../../types';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { 
@@ -26,7 +26,9 @@ export const AnalysisScreen: React.FC<AnalysisScreenProps> = ({ rfp, config, onB
   const buyerTerms = parsedData.buyer_added_terms || [];
   const mandatoryDocs = parsedData.mandatoryDocuments || [];
   const companyName = config?.companyDetails?.companyName || "Our Company";
-
+  
+  const [documents, setDocuments] = useState<VaultItem[]>([]);
+  
   // --- 2. STATE ---
   const [activeTab, setActiveTab] = useState<'COMMERCIALS' | 'COMPLIANCE'>('COMMERCIALS');
   const [logisticsParams, setLogisticsParams] = useState({
@@ -40,7 +42,37 @@ export const AnalysisScreen: React.FC<AnalysisScreenProps> = ({ rfp, config, onB
   const [expandedTechItem, setExpandedTechItem] = useState<number | null>(null); 
   const [testingProvision, setTestingProvision] = useState<number>(15000);
   const [disqualifiedItems, setDisqualifiedItems] = useState<string[]>([]);
-  const [vaultLibrary, setVaultLibrary] = useState<string[]>([]);
+
+  // Base docs that must always be checked independently
+  const combinedDocs = useMemo(() => {
+    const baseDocs = ["GST Certificate", "PAN Card", "Certificate of Incorporation"];
+    return Array.from(new Set([...baseDocs, ...mandatoryDocs]));
+  }, [mandatoryDocs]);
+
+  // Strict Matching Helper
+  const getMatchedVaultDoc = (reqDoc: string, vaultDocs: VaultItem[]) => {
+    const reqName = reqDoc.toLowerCase();
+    // Exclude generic words to prevent false positives (like Execution Certificate matching GST Certificate)
+    const genericWords = ['certificate', 'document', 'declaration', 'form', 'proof', 'copy', 'registration', 'by', 'client', 'for', 'the', 'of'];
+    
+    return vaultDocs.find(vaultDoc => {
+        const vaultName = vaultDoc.cert_name.toLowerCase();
+        
+        // 1. Direct match
+        if (reqName.includes(vaultName) || vaultName.includes(reqName)) return true;
+
+        // 2. Strict Keyword match
+        const vaultKeywords = vaultName
+            .replace(/[^a-z0-9\s]/g, '')
+            .split(' ')
+            .filter(w => w.length > 2 && !genericWords.includes(w));
+        
+        if (vaultKeywords.length === 0) return false;
+
+        // Must match at least one significant identifying keyword
+        return vaultKeywords.some(kw => reqName.includes(kw));
+    });
+  };
 
   // --- 3. DYNAMIC DOCUMENT GENERATOR ---
   const initialBlankDocs = useMemo(() => {
@@ -72,36 +104,26 @@ export const AnalysisScreen: React.FC<AnalysisScreenProps> = ({ rfp, config, onB
           });
        });
     }
-
-    docs.push({ 
-      id: 'MII_DECL', 
-      name: 'Form 1: Local Content Declaration (MII)', 
-      url: 'https://gem.gov.in/mii_declaration_format',
-      status: 'DETECTED',
-      type: 'COMPLIANCE'
-    });
-
     return docs;
   }, [parsedData.extractedLinks, technicalResults]);
 
   const [blankDocs, setBlankDocs] = useState<BlankDoc[]>(initialBlankDocs);
 
+  // Fetch real vault docs
   useEffect(() => {
-    const fetchLiveVault = async () => {
+    const fetchVaultData = async () => {
       try {
         const API_BASE = window.location.hostname === 'localhost' ? 'http://localhost:3001' : '';
-        const res = await fetch(`${API_BASE}/api/vault/documents`);
-        const data = await res.json();
-        
-        if (data.success && data.documents) {
-          setVaultLibrary(data.documents.map((doc: any) => doc.cert_name));
+        const response = await fetch(`${API_BASE}/api/compliance-check`);
+        const data = await response.json();
+        if (data.certificates) {
+          setDocuments(data.certificates);
         }
-      } catch (err) {
-        console.warn("Could not fetch vault. Using fallback data for demo.");
-        setVaultLibrary(['GST Registration', 'PAN Card', 'ISO 9001:2015', 'Factory License']);
+      } catch (error) {
+        console.error("Error fetching vault for analysis:", error);
       }
     };
-    fetchLiveVault();
+    fetchVaultData();
   }, []);
 
   useEffect(() => {
@@ -154,9 +176,9 @@ export const AnalysisScreen: React.FC<AnalysisScreenProps> = ({ rfp, config, onB
     const pageWidth = doc.internal.pageSize.width;
     
     // 1. Corporate Header
-    doc.setFillColor(15, 23, 42); // Slate 950
+    doc.setFillColor(15, 23, 42);
     doc.rect(0, 0, pageWidth, 40, 'F');
-    doc.setTextColor(212, 175, 55); // Gold 500
+    doc.setTextColor(212, 175, 55);
     doc.setFontSize(24);
     doc.setFont("helvetica", "bolditalic");
     doc.text("TENDERFLOW", 14, 22);
@@ -174,7 +196,7 @@ export const AnalysisScreen: React.FC<AnalysisScreenProps> = ({ rfp, config, onB
     doc.text(`Target Department: ${parsedMetadata.department || rfp.organisation.replace('Parsing...', 'GeM Public Tender')}`, 14, 62);
     doc.text(`Consignee Location: ${parsedData.consignee || parsedMetadata.officeName || "Multiple Locations"}`, 14, 68);
 
-    // 3. AI Compliance & Rules Summary (From Compliance Tab)
+    // 3. AI Compliance & Rules Summary
     doc.setFontSize(14);
     doc.setTextColor(15, 23, 42);
     doc.setFont("helvetica", "bold");
@@ -194,23 +216,19 @@ export const AnalysisScreen: React.FC<AnalysisScreenProps> = ({ rfp, config, onB
       currentY += 10;
     }
 
-    currentY += 10; // Padding before next section
+    currentY += 10;
 
-    // 4. Compliance & Vault Readiness (From Compliance Tab)
+    // 4. Compliance & Vault Readiness
     doc.setFontSize(14);
     doc.setFont("helvetica", "bold");
     doc.text("2. Document Compliance Validation", 14, currentY);
     
-    const complianceData = mandatoryDocs.map((docName: string) => {
-      const reqDocString = docName.toLowerCase();
-      const inVault = vaultLibrary.some(vaultDoc => {
-          const vaultKeywords = vaultDoc.toLowerCase().replace(/[^a-z0-9\s]/g, '').split(' ').filter(w => w.length > 2);
-          return vaultKeywords.some(kw => reqDocString.includes(kw));
-      });
-      return [docName, inVault ? 'Verified in Vault' : 'Missing / Required'];
+    const complianceData = combinedDocs.map((docName: string) => {
+      const matchedDoc = getMatchedVaultDoc(docName, documents);
+      const inVault = !!matchedDoc && matchedDoc.is_valid;
+      return [docName, inVault ? `Verified: ${matchedDoc.cert_name}` : 'Missing / Required'];
     });
 
-    // Add EMD Status to compliance table
     complianceData.push(['EMD Payment Proof', liveCalculations.emd > 0 ? `Required (₹${Math.round(liveCalculations.emd).toLocaleString()})` : 'Exempted']);
 
     autoTable(doc, {
@@ -218,11 +236,11 @@ export const AnalysisScreen: React.FC<AnalysisScreenProps> = ({ rfp, config, onB
       head: [['Required Document', 'System Verification Status']],
       body: complianceData,
       theme: 'grid',
-      headStyles: { fillColor: [16, 185, 129], textColor: [255, 255, 255] }, // Emerald 500
+      headStyles: { fillColor: [16, 185, 129], textColor: [255, 255, 255] },
       styles: { fontSize: 9 }
     });
 
-    // 5. Technical Match Table (From Commercials Tab)
+    // 5. Technical Match Table
     doc.addPage();
     doc.setFontSize(14);
     doc.setTextColor(15, 23, 42);
@@ -240,15 +258,14 @@ export const AnalysisScreen: React.FC<AnalysisScreenProps> = ({ rfp, config, onB
       head: [['RFP Requirement', 'Qty', 'Matched Internal SKU', 'System Match Score']],
       body: techData,
       theme: 'grid',
-      headStyles: { fillColor: [30, 41, 59], textColor: [255, 255, 255] }, // Slate 800
+      headStyles: { fillColor: [30, 41, 59], textColor: [255, 255, 255] },
       alternateRowStyles: { fillColor: [248, 250, 252] },
       styles: { fontSize: 9 }
     });
 
-    // 6. Financial BoQ Table (From Commercials Tab)
+    // 6. Financial BoQ Table
     const finalY = (doc as any).lastAutoTable.finalY || 90;
     
-    // Check if we need a new page for financials
     if (finalY > 220) {
        doc.addPage();
        currentY = 22;
@@ -276,13 +293,12 @@ export const AnalysisScreen: React.FC<AnalysisScreenProps> = ({ rfp, config, onB
       head: [['Cost Component', 'Calculated Amount (INR)']],
       body: finData,
       theme: 'grid',
-      headStyles: { fillColor: [212, 175, 55], textColor: [15, 23, 42] }, // Gold 500
+      headStyles: { fillColor: [212, 175, 55], textColor: [15, 23, 42] },
       styles: { fontSize: 10 },
       didParseCell: function(data: any) {
-        // Highlight the final row in bold green
         if (data.row.index === finData.length - 1) {
           data.cell.styles.fontStyle = 'bold';
-          data.cell.styles.textColor = [16, 185, 129]; // Emerald 500
+          data.cell.styles.textColor = [16, 185, 129];
         }
       }
     });
@@ -356,7 +372,6 @@ export const AnalysisScreen: React.FC<AnalysisScreenProps> = ({ rfp, config, onB
   // --- 6. RENDERERS ---
   const renderCommercials = () => (
     <div className="flex flex-col gap-6 w-full">
-      {/* TOP: CONSIGNEE LOCATION */}
       <div className="bg-slate-900/40 backdrop-blur-md border border-slate-800/80 rounded-[2rem] p-6 flex items-center justify-between shadow-xl">
         <div className="flex items-center gap-4">
           <div className="w-12 h-12 rounded-xl bg-blue-500/10 flex items-center justify-center">
@@ -398,7 +413,6 @@ export const AnalysisScreen: React.FC<AnalysisScreenProps> = ({ rfp, config, onB
       </div>
 
       <div className="grid grid-cols-2 gap-6 items-start">
-        {/* LEFT: TECHNICAL SKU MATCHING */}
         <div className="bg-slate-900/40 backdrop-blur-md border border-slate-800/80 rounded-[2rem] p-6 flex flex-col shadow-xl">
           <h3 className="text-xs font-black text-slate-300 uppercase tracking-widest mb-4 flex items-center gap-2">
              <Scale className="w-4 h-4" /> Technical SKU Matching
@@ -451,7 +465,6 @@ export const AnalysisScreen: React.FC<AnalysisScreenProps> = ({ rfp, config, onB
                       </div>
                     </div>
 
-                    {/* NEW: Match % directly on the card */}
                     {!isDisqualified && (
                       <div className="mt-2 text-right">
                         <span className={`text-[10px] font-black uppercase tracking-widest px-2 py-1 rounded bg-slate-900 border ${
@@ -498,7 +511,6 @@ export const AnalysisScreen: React.FC<AnalysisScreenProps> = ({ rfp, config, onB
           </div>
         </div>
 
-        {/* RIGHT: FINANCIAL CALCULATOR */}
         <div className="bg-slate-900/40 backdrop-blur-md border border-slate-800/80 rounded-[2rem] p-8 flex flex-col justify-center relative overflow-hidden shadow-xl sticky top-0">
           <div className="space-y-6 relative z-10">
             <div>
@@ -554,48 +566,106 @@ export const AnalysisScreen: React.FC<AnalysisScreenProps> = ({ rfp, config, onB
       <div className="grid grid-cols-2 gap-6 items-start w-full">
       {/* LEFT COLUMN */}
       <div className="space-y-6">
-        <div className="bg-emerald-500/10 backdrop-blur-md border border-emerald-500/30 rounded-[2rem] p-6 shadow-xl">
-          <div className="flex items-start gap-4">
-             <Factory className="w-8 h-8 text-emerald-500 shrink-0" />
-             <div>
-                <h3 className="text-sm font-black text-emerald-500 uppercase tracking-widest flex items-center gap-2">
-                   Class-1 Local Supplier Detected <CheckCircle2 className="w-4 h-4" />
-                </h3>
-                <p className="text-xs text-emerald-100/70 mt-1 leading-relaxed">
-                   <strong>Benefit Active:</strong> As an MII Class-1 OEM ({companyName}), you are eligible for Purchase Preference. 
-                   If your bid is within 20% of the L1 price, you will be given an option to match L1 and win 50% of the tender quantity.
-                </p>
-             </div>
-          </div>
-        </div>
+        
+        {/* Dynamic MII / Local Supplier Benefit Card */}
+        {(() => {
+          const miiDoc = documents.find((d: VaultItem) => 
+            (d.cert_name.toUpperCase().includes('MII') || 
+             d.cert_name.toUpperCase().includes('LOCAL CONTENT')) && 
+            d.is_valid
+          );
+
+          if (!miiDoc) return null;
+
+          return (
+            <div className="bg-emerald-500/10 backdrop-blur-md border border-emerald-500/30 rounded-[2rem] p-6 shadow-xl mb-6 animate-in fade-in slide-in-from-left duration-700">
+              <div className="flex items-start gap-4">
+                <div className="relative">
+                  <Factory className="w-8 h-8 text-emerald-500 shrink-0" />
+                  <div className="absolute -bottom-1 -right-1 bg-emerald-500 rounded-full p-0.5">
+                    <CheckCircle2 className="w-2.5 h-2.5 text-slate-950" />
+                  </div>
+                </div>
+                <div>
+                  <h3 className="text-sm font-black text-emerald-500 uppercase tracking-widest flex items-center gap-2">
+                    Class-1 Local Supplier Benefit Active
+                  </h3>
+                  <p className="text-xs text-emerald-100/70 mt-1 leading-relaxed">
+                    <strong>Verification Success:</strong> The agent successfully mapped 
+                    <span className="text-emerald-400 font-bold mx-1">"{miiDoc.cert_name}"</span> 
+                     from your vault to this RFP's MII requirements. 
+                    As a Class-1 OEM ({companyName}), you are eligible for the 50% Purchase Preference option.
+                  </p>
+                  
+                  <button 
+                    onClick={() => {
+                      const API_BASE = window.location.hostname === 'localhost' ? 'http://localhost:3001' : '';
+                      window.open(`${API_BASE}/api/vault/view/${miiDoc.file_path}`, '_blank');
+                    }}
+                    className="mt-3 flex items-center gap-2 text-[10px] font-black text-emerald-500 hover:text-white transition-colors group"
+                  >
+                    <Eye className="w-3 h-3 group-hover:scale-110 transition-transform" />
+                    VIEW MAPPED PROOF
+                  </button>
+                </div>
+              </div>
+            </div>
+          );
+        })()}
 
         <div className="bg-slate-900/40 backdrop-blur-md border border-slate-800/80 rounded-[2rem] p-6 shadow-xl">
           <h3 className="text-xs font-black text-slate-300 uppercase tracking-widest mb-4 flex items-center gap-2">
             <ShieldCheck className="w-4 h-4" /> Required Docs vs. Vault
           </h3>
           <div className="space-y-3">
-             <div className="flex justify-between items-center p-4 bg-slate-950/80 rounded-xl border border-slate-800/80">
-               <span className="text-xs font-bold text-white">GST / PAN / Incorporation</span>
-               <span className="text-[9px] font-black uppercase px-3 py-1.5 rounded-lg bg-emerald-500/10 text-emerald-400">Verified in Vault</span>
-             </div>
              
-            {mandatoryDocs.map((doc: string, i: number) => {
-                const reqDocString = doc.toLowerCase();
-                const inVault = vaultLibrary.some(vaultDoc => {
-                    const vaultKeywords = vaultDoc.toLowerCase().replace(/[^a-z0-9\s]/g, '').split(' ').filter(w => w.length > 2);
-                    return vaultKeywords.some(kw => reqDocString.includes(kw));
-                });
-                
-                return (
-                  <div key={i} className={`flex justify-between items-center p-4 bg-slate-950/80 rounded-xl border ${inVault ? 'border-emerald-500/20' : 'border-amber-500/20'}`}>
-                    <span className="text-xs font-bold text-white">{doc}</span>
-                    <span className={`text-[9px] font-black uppercase px-3 py-1.5 rounded-lg ${inVault ? 'bg-emerald-500/10 text-emerald-400' : 'bg-amber-500/10 text-amber-400'}`}>
-                      {inVault ? 'Verified in Vault' : 'Missing: Request Upload'}
-                    </span>
-                  </div>
-                );
-             })}
+          {combinedDocs.map((reqDoc: string, i: number) => {
+            const matchedVaultDoc = getMatchedVaultDoc(reqDoc, documents);
+            const inVault = !!matchedVaultDoc && matchedVaultDoc.is_valid;
+            const isOemOverride = inVault && 
+              (reqDoc.toLowerCase().includes('oem') || reqDoc.toLowerCase().includes('manufacturer') || reqDoc.toLowerCase().includes('maf')) && 
+              matchedVaultDoc.cert_name.toLowerCase().includes('factory');
+            return (
+                <div key={i} className={`flex justify-between items-center p-4 bg-slate-950/80 rounded-xl border ${inVault ? 'border-emerald-500/20' : 'border-amber-500/20'}`}>
+                    <div className="flex items-center gap-3">
+                        <div className={`p-2 rounded-lg ${inVault ? 'bg-emerald-500/10' : 'bg-amber-500/10'}`}>
+                            {inVault ? <ShieldCheck className="w-4 h-4 text-emerald-500" /> : <FileCog className="w-4 h-4 text-amber-500" />}
+                        </div>
+                        <div>
+                          <span className="text-xs font-bold text-white flex items-center gap-2">
+                                {reqDoc}
+                                {isOemOverride && (
+                                    <span className="text-[8px] bg-blue-500/20 text-blue-400 px-1.5 py-0.5 rounded font-black uppercase tracking-widest border border-blue-500/30">
+                                        AI Mapped OEM Proof
+                                    </span>
+                                )}
+                            </span>
+                            <span className={`text-[9px] font-black uppercase ${inVault ? 'text-emerald-400' : 'text-amber-400'}`}>
+                                {inVault ? `Verified: ${matchedVaultDoc.cert_name}` : 'Missing in Vault'}
+                            </span>
+                        </div>
+                    </div>
 
+                    <div className="flex items-center gap-2">
+                        {inVault && (
+                            <button 
+                                onClick={() => {
+                                    const API_BASE = window.location.hostname === 'localhost' ? 'http://localhost:3001' : '';
+                                    window.open(`${API_BASE}/api/vault/view/${matchedVaultDoc.file_path}`, '_blank');
+                                }}
+                                className="p-2 hover:bg-slate-800 rounded-lg text-slate-400 hover:text-emerald-500 transition-all group"
+                                title="View Document"
+                            >
+                                <Eye className="w-4 h-4 group-hover:scale-110 transition-transform" />
+                            </button>
+                        )}
+                        <span className={`text-[9px] font-black uppercase px-3 py-1.5 rounded-lg ${inVault ? 'bg-emerald-500/10 text-emerald-400' : 'bg-amber-500/10 text-amber-400'}`}>
+                            {inVault ? 'Matched' : 'Action Required'}
+                        </span>
+                    </div>
+                </div>
+            );
+          })}
              <div className={`flex justify-between items-center p-4 bg-slate-950/80 rounded-xl border ${liveCalculations.emd > 0 ? 'border-red-500/30' : 'border-slate-800/80'}`}>
                <div>
                  <span className="text-xs font-bold text-white block">EMD Payment Proof</span>
@@ -608,7 +678,7 @@ export const AnalysisScreen: React.FC<AnalysisScreenProps> = ({ rfp, config, onB
              </div>
           </div>
         </div>
-        </div>
+      </div>
 
       {/* RIGHT COLUMN: DOCUMENT EXTRACTION & CONVERSION */}
       <div className="bg-slate-900/40 backdrop-blur-md border border-slate-800/80 rounded-[2rem] flex flex-col relative overflow-hidden shadow-xl">
@@ -647,7 +717,15 @@ export const AnalysisScreen: React.FC<AnalysisScreenProps> = ({ rfp, config, onB
                   
                   <div className="flex gap-3 mt-1">
                      <button 
-                        onClick={() => window.open(doc.url, '_blank')}
+                        onClick={() => {
+                          let targetUrl = doc.url;
+                          // Intercept AI hallucinated URLs and reroute to the main RFP document
+                          if (targetUrl.includes('example.com') || targetUrl.includes('dummy')) {
+                             const API_BASE = window.location.hostname === 'localhost' ? 'http://localhost:3001' : '';
+                             targetUrl = `${API_BASE}/api/vault/view/${parsedMetadata.bidNumber || rfp.id}.pdf`;
+                          }
+                          window.open(targetUrl, '_blank');
+                        }}
                         className="flex-1 py-3 bg-slate-800 text-slate-300 border border-slate-700 hover:bg-slate-700 hover:text-white text-[9px] font-black uppercase tracking-widest rounded-xl transition-all flex items-center justify-center gap-2"
                      >
                         <Eye className="w-4 h-4" /> Preview
@@ -682,7 +760,7 @@ export const AnalysisScreen: React.FC<AnalysisScreenProps> = ({ rfp, config, onB
          </div>
       </div>
       </div>
-    <div className="bg-slate-900/40 backdrop-blur-md border border-slate-800/80 rounded-[2rem] p-6 shadow-xl w-full">
+      <div className="bg-slate-900/40 backdrop-blur-md border border-slate-800/80 rounded-[2rem] p-6 shadow-xl w-full">
           <h3 className="text-xs font-black text-slate-300 uppercase tracking-widest mb-6 flex items-center gap-2">
             <BrainCircuit className="w-4 h-4 text-purple-500" /> Executive AI Summary & ATC Rules
           </h3>
@@ -702,21 +780,15 @@ export const AnalysisScreen: React.FC<AnalysisScreenProps> = ({ rfp, config, onB
             )}
           </div>
       </div>
-      
     </div>
   );
 
   return (
     <div className="absolute inset-0 bg-slate-950 text-slate-200 overflow-hidden font-sans">
-      
-      {/* --- GLOSSY BACKGROUND ORBS --- */}
       <div className="absolute top-[-10%] right-[-10%] w-[800px] h-[800px] bg-gold-500/10 blur-[150px] rounded-full pointer-events-none z-0" />
       <div className="absolute bottom-[20%] left-[-10%] w-[600px] h-[600px] bg-blue-600/10 blur-[150px] rounded-full pointer-events-none z-0" />
 
-      {/* --- MAIN SCROLLABLE AREA --- */}
       <div className="h-full w-full overflow-y-auto scrollbar-hide px-8 pt-8 pb-32 relative z-10">
-         
-        {/* HEADER */}
         <div className="shrink-0 flex justify-between items-center mb-8 border-b border-slate-800/80 pb-6">
           <div>
             <div className="flex items-center gap-4 mb-2">
@@ -747,7 +819,6 @@ export const AnalysisScreen: React.FC<AnalysisScreenProps> = ({ rfp, config, onB
           </div>
         </div>
 
-        {/* --- DYNAMIC TABS UI --- */}
         <div className="flex justify-center gap-4 mb-8 w-full max-w-2xl mx-auto">
           <button 
               onClick={() => setActiveTab('COMMERCIALS')}
@@ -763,14 +834,12 @@ export const AnalysisScreen: React.FC<AnalysisScreenProps> = ({ rfp, config, onB
           </button>
         </div>
 
-        {/* CONTENT RENDERER */}
         <div className="w-full">
            {activeTab === 'COMMERCIALS' && renderCommercials()}
            {activeTab === 'COMPLIANCE' && renderCompliance()}
         </div>
       </div>
 
-      {/* --- FIXED BOTTOM ACTION BAR --- */}
       <div className="absolute bottom-0 left-0 right-0 h-24 bg-slate-950/80 backdrop-blur-xl border-t border-slate-800/80 flex items-center justify-between px-8 z-50">
          <button onClick={onCancel} className="bg-slate-800 text-slate-300 border border-slate-700 hover:bg-slate-700 hover:text-white px-5 py-3.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all">
             Abort Analysis
@@ -792,7 +861,6 @@ export const AnalysisScreen: React.FC<AnalysisScreenProps> = ({ rfp, config, onB
         </div>
       </div>
 
-      {/* OVERLAY: EDIT MANUAL PRICE */}
       {editingItem && (
         <div className="fixed inset-0 z-[120] bg-slate-950/90 backdrop-blur-xl flex items-center justify-center p-8">
           <div className="bg-slate-900 border border-slate-800 rounded-[30px] p-8 max-w-md w-full shadow-2xl">

@@ -238,7 +238,7 @@ export const SignInScreen: React.FC<SignInScreenProps> = ({ onAuthSuccess, initi
   };
 
   return (
-    <div className="min-h-screen w-full bg-slate-950 flex flex-col md:flex-row overflow-hidden font-sans relative">
+    <div className="h-[100dvh] w-full bg-slate-950 flex flex-col md:flex-row overflow-hidden font-sans relative">
       
       {/* LEFT HALF */}
       <div className="hidden md:flex md:w-1/2 bg-gradient-to-br from-blue-900/20 via-slate-950 to-slate-950 p-16 flex-col justify-between border-r border-slate-800/50 relative">

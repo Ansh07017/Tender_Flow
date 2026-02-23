@@ -60,18 +60,28 @@ export const FrontPage: React.FC<FrontPageProps> = ({
             </p>
           </div>
           
-          <div className="flex gap-5">
-            {[
-              { label: 'Success Rate', val: '67%', color: 'text-emerald-400', glow: 'shadow-[0_0_15px_rgba(52,211,153,0.1)]' },
-              { label: 'Bid Rate', val: '48%', color: 'text-blue-400', glow: 'shadow-[0_0_15px_rgba(96,165,250,0.1)]' },
-              { label: 'Avg Match', val: '83%', color: 'text-gold-400', glow: 'shadow-[0_0_15px_rgba(250,204,21,0.1)]' }
-            ].map((kpi, i) => (
-              <div key={i} className={`bg-slate-950/60 border border-slate-700/50 px-8 py-3 rounded-2xl text-center min-w-[130px] backdrop-blur-xl ${kpi.glow} transition-all hover:scale-105 cursor-default`}>
-                <div className="text-[8px] text-slate-400 font-black uppercase tracking-widest mb-1.5">{kpi.label}</div>
-                <div className={`text-2xl font-black drop-shadow-md ${kpi.color}`}>{kpi.val}</div>
-              </div>
-            ))}
-          </div>
+          <div className="flex gap-4">
+  {[
+    { label: 'Response Volume', val: '+430%', subtext: 'Annual Submissions', color: 'text-emerald-400', glow: 'shadow-[0_0_15px_rgba(52,211,153,0.1)]' },
+    { label: 'Turnaround Time', val: '< 1 hr', subtext: 'Down from 1 week', color: 'text-blue-400', glow: 'shadow-[0_0_15px_rgba(96,165,250,0.1)]' },
+    { label: 'Tech Match Speed', val: '96%', subtext: 'Faster processing', color: 'text-gold-400', glow: 'shadow-[0_0_15px_rgba(250,204,21,0.1)]' }
+  ].map((stat, idx) => (
+    <div 
+      key={idx} 
+      className={`bg-slate-900/50 border border-slate-800 rounded-2xl px-6 py-4 flex flex-col justify-center items-center ${stat.glow}`}
+    >
+      <span className="text-[9px] font-black text-slate-500 uppercase tracking-widest mb-1 text-center">
+        {stat.label}
+      </span>
+      <span className={`text-2xl font-black ${stat.color}`}>
+        {stat.val}
+      </span>
+      <span className="text-[8px] font-bold text-slate-400/80 uppercase tracking-widest mt-1 text-center">
+        {stat.subtext}
+      </span>
+    </div>
+  ))}
+</div>
         </div>
 
         {/* --- MIDDLE SECTION: URGENCY HEATMAP (65%) & CHART (35%) --- */}

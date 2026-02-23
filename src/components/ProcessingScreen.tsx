@@ -1,6 +1,6 @@
 import * as React from 'react';
 import { useState, useEffect, useRef } from 'react';
-import { Rfp, LogEntry,AppConfig } from '../../types';
+import { Rfp, LogEntry,AppConfig,VaultItem } from '../../types';
 import { TrendingUp, TrendingDown, Activity, Cpu, ShieldCheck, Database, Factory, Award } from 'lucide-react';
 
 interface ProcessingScreenProps {
@@ -19,7 +19,7 @@ export const ProcessingScreen: React.FC<ProcessingScreenProps> = ({
   const [totalElapsed, setTotalElapsed] = useState(priorPhasesDuration);
   const [insightIndex, setInsightIndex] = useState(0);
   const [isSnapshotOpen, setIsSnapshotOpen] = useState(false);
-  
+  const [vaultDocs, setVaultDocs] = useState<VaultItem[]>([]);
   // LIVE AI MARKET DATA (Unified Payload)
   const [liveInsights, setLiveInsights] = useState<string[]>(["Establishing secure uplink to market intelligence..."]);
   const [commodities, setCommodities] = useState<any[]>([
@@ -28,6 +28,7 @@ export const ProcessingScreen: React.FC<ProcessingScreenProps> = ({
     { symbol: "IDX.PVC", name: "PVC Resin", price: "₹---", trend: "---", up: true },
     { symbol: "IDX.STL", name: "Galv Steel", price: "₹---", trend: "---", up: true }
   ]);
+
 
   const logsEndRef = useRef<HTMLDivElement>(null);
   
@@ -59,6 +60,22 @@ export const ProcessingScreen: React.FC<ProcessingScreenProps> = ({
   }, []);
 
   useEffect(() => {
+    const fetchVault = async () => {
+      try {
+        const API_BASE = window.location.hostname === 'localhost' ? 'http://localhost:3001' : '';
+        const res = await fetch(`${API_BASE}/api/compliance-check`);
+        const data = await res.json();
+        if (data.certificates) {
+          setVaultDocs(data.certificates);
+        }
+      } catch (err) {
+        console.error("Vault fetch failed", err);
+      }
+    };
+    fetchVault();
+  }, []);
+
+  useEffect(() => {
     let timer: NodeJS.Timeout;
     if (isProcessing) {
       timer = setInterval(() => setTotalElapsed(prev => prev + 1), 1000);
@@ -78,6 +95,8 @@ export const ProcessingScreen: React.FC<ProcessingScreenProps> = ({
   useEffect(() => {
     logsEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [logs]);
+    const vaultCount = vaultDocs.length || 13;
+    const validVaultCount = vaultDocs.length > 0 ? vaultDocs.filter(doc => doc.is_valid).length : 11;
 
   return (
     <div className="h-full w-full bg-slate-950 text-slate-200 flex flex-col relative font-sans overflow-hidden">
@@ -176,7 +195,7 @@ export const ProcessingScreen: React.FC<ProcessingScreenProps> = ({
                     <div className="bg-slate-900/80 border border-slate-700/50 p-3 rounded-xl flex flex-col justify-center">
                       <ShieldCheck className="w-4 h-4 text-slate-400 mb-2" />
                       <span className="text-[9px] text-slate-500 font-bold uppercase tracking-widest">Vault Integrity</span>
-                      <span className="text-sm font-black text-emerald-400 mt-0.5">4/4 Verified</span>
+                      <span className="text-sm font-black text-emerald-400 mt-0.5">{validVaultCount}/{vaultCount} Verified</span>
                     </div>
                     <div className="bg-slate-900/80 border border-slate-700/50 p-3 rounded-xl flex flex-col justify-center">
                       <Database className="w-4 h-4 text-slate-400 mb-2" />

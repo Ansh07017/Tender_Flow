@@ -14,6 +14,15 @@ export type AgentName =
 
 export type SystemAgent = 'SYSTEM';
 
+export interface VaultItem {
+  id: number;
+  cert_name: string;
+  category?: 'FINANCIAL' | 'TECHNICAL' | 'LEGAL' | string;
+  is_valid: boolean;
+  expiry_date?: string;
+  file_path: string;
+}
+
 export interface LogEntry {
   timestamp: Date;
   agent: AgentName | SystemAgent;
