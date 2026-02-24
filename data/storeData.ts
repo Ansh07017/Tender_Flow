@@ -139,7 +139,7 @@ export const productInventory: SKU[] = [
       "Finish": "Hot Dip Galvanized / Bituminous Painted Base",
       "Designation": "410 SP-31"
     },
-    availableQuantity: 450,
+    availableQuantity: 1500,
     warehouseLocation: "Jalandhar, PB", 
     warehouseCode: "JAL-01", 
     warehouseLat: 31.3260, 
@@ -175,7 +175,7 @@ export const productInventory: SKU[] = [
       "Finish": "Hot Dip Galvanized (Avg 86 Microns)",
       "Accessories": "Aviation Obstruction Lights, Lightning Arrestor, Control Panel with Timer"
     },
-    availableQuantity: 45, // Lower stock for high-value engineering items
+    availableQuantity: 15,
     warehouseLocation: "Jalandhar, PB",
     warehouseCode: "JAL-01",
     warehouseLat: 31.3260,
@@ -971,6 +971,35 @@ export const productInventory: SKU[] = [
     truckType: 'LCV', leadTime: 3, costPrice: 95, unitSalesPrice: 180, bulkSalesPrice: 155,
     gstRate: 18, brokerage: 1.0, minMarginPercent: 15, isActive: true, isCustomMadePossible: false, isComplianceReady: true,
   },
+  {
+  skuId: "POLE-10M-410SP8", 
+  productName: "Tubular Street Light Poles (V2)",
+  productCategory: "Lighting Pole or Post and Hardware",
+  productSubCategory: "Tubular Street Light Poles",
+  oemBrand: "TenderFlow Standard OEM", 
+  specification: { 
+    "Length": "10 Metre",
+    "Coating": "Galvanised min. Mass of Zinc coating 360 Gms. sq. Mtr.",
+    "Designation": "410SP-8 as per IS 2713/80 Part-2",
+    "Included Lights": "45-50W (54 qty), 75-90W (48 qty), 140-150W (10 qty)"
+  },
+  availableQuantity: 1500, 
+  warehouseLocation: "Kanpur, UP", 
+  warehouseCode: "KNP-01", 
+  warehouseLat: 26.4499, 
+  warehouseLon: 80.3319,
+  truckType: 'Trailer', 
+  leadTime: 30,
+  costPrice: 12500, 
+  unitSalesPrice: 15000, 
+  bulkSalesPrice: 14200,
+  gstRate: 18, 
+  brokerage: 1.0, 
+  minMarginPercent: 10, 
+  isActive: true, 
+  isCustomMadePossible: true, 
+  isComplianceReady: true,
+},
   {
     skuId: "PLB-HW-HLD-SNT",
     productName: "B22 Slanting Batten Holder (Non-Modular)",
