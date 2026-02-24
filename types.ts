@@ -140,6 +140,7 @@ export interface ParsedRfpData {
     isBidClosed?: boolean;
     epbgPercent?: number;
     emdAmount?: number;
+    epbgAmount?: number;
   };
 
   products: RfpProductLineItem[];

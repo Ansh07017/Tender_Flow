@@ -293,7 +293,7 @@ const App: React.FC = () => {
 
   const handleBackToList = () => {
     setSelectedRfpId(null);
-    setCurrentView('rfps');
+    setCurrentView('frontpage');
     setProcessingStartTime(null);
   };
 

@@ -3,11 +3,6 @@ import { SKU, RfpProductLineItem} from '../../types';
 /* =====================================================
     CONFIG – Industrial Strategic Weights
 ===================================================== */
-const WEIGHTS = {
-  CATEGORY_MATCH: 1.0,
-  IS_STANDARD: 0.60,    // 60% of technical score
-  SPEC_DETAILS: 0.40,   // 40% of technical score
-};
 
 const AVAILABILITY = {
   FULL: 1.0,
@@ -22,31 +17,71 @@ const AVAILABILITY = {
 
 function calculateIndustrialMatch(
   rfpSpecs: string[],
-  skuSpecs: Record<string, string>
+  skuSpecs: Record<string, string>,
+  rfpItemName: string,
+  skuCategory: string,
+  skuName: string
 ): number {
-  if (!rfpSpecs || rfpSpecs.length === 0) return 60;
-
   let score = 0;
-  const skuValues = Object.values(skuSpecs).map(v => String(v).toLowerCase());
+  const skuValues = Object.values(skuSpecs || {}).map(v => String(v).toLowerCase());
   
-  // 1. IS Standard Check (60% Weight)
-  const hasStandardMatch = rfpSpecs.some(spec => 
-    skuValues.some(val => val.includes("is") && spec.toLowerCase().includes(val))
-  );
-  if (hasStandardMatch) score += (WEIGHTS.IS_STANDARD * 100);
+  // Tokenize the strings (split by spaces/symbols and remove tiny filler words)
+  const rfpWords = rfpItemName.toLowerCase().split(/[\s,/-]+/).filter(w => w.length > 2);
+  const categoryWords = skuCategory.toLowerCase().split(/[\s,/-]+/).filter(w => w.length > 2);
+  const nameWords = skuName.toLowerCase().split(/[\s,/-]+/).filter(w => w.length > 2);
 
-  // 2. Attribute Deep Dive (40% Weight)
-  let matchedAttributes = 0;
-  rfpSpecs.forEach(spec => {
-    if (skuValues.some(val => val.length > 2 && spec.toLowerCase().includes(val))) {
-      matchedAttributes++;
+  // 1. CATEGORY OVERLAP (Max 40 Points)
+  // Does the RFP item belong in this family of products?
+  let categoryMatches = 0;
+  rfpWords.forEach(word => {
+    if (categoryWords.some(catWord => catWord.includes(word) || word.includes(catWord))) {
+      categoryMatches++;
+    }
+  });
+  
+  if (rfpWords.length > 0 && categoryWords.length > 0) {
+    // We use Math.min to prevent dilution if one string is much longer than the other
+    const catScore = (categoryMatches / Math.min(rfpWords.length, categoryWords.length)) * 40;
+    score += Math.min(catScore, 40); // Cap at 40
+  }
+
+  // 2. PRODUCT NAME OVERLAP (Max 20 Points)
+  // How closely does the specific item name match?
+  let nameMatches = 0;
+  rfpWords.forEach(word => {
+    if (nameWords.some(nWord => nWord.includes(word) || word.includes(nWord))) {
+      nameMatches++;
     }
   });
 
-  score += (matchedAttributes / Math.max(rfpSpecs.length, 1)) * (WEIGHTS.SPEC_DETAILS * 100);
+  if (rfpWords.length > 0 && nameWords.length > 0) {
+    const nameScore = (nameMatches / Math.min(rfpWords.length, nameWords.length)) * 20;
+    score += Math.min(nameScore, 20); // Cap at 20
+  }
+
+  // 3. IS STANDARD & SPEC DEEP DIVE (Max 40 Points)
+  // Does it meet the technical requirements?
+  if (rfpSpecs && rfpSpecs.length > 0) {
+      // Bonus for exact IS standard match
+      const hasStandardMatch = rfpSpecs.some(spec => 
+        skuValues.some(val => val.includes("is") && (spec.toLowerCase().includes(val) || val.includes(spec.toLowerCase())))
+      );
+      if (hasStandardMatch) score += 20;
+
+      // Bonus for other technical attributes (wattage, dimensions, etc.)
+      let matchedAttributes = 0;
+      rfpSpecs.forEach(spec => {
+        const cleanSpec = spec.toLowerCase();
+        if (skuValues.some(val => val.length > 2 && (cleanSpec.includes(val) || val.includes(cleanSpec)))) {
+          matchedAttributes++;
+        }
+      });
+      score += (matchedAttributes / Math.max(rfpSpecs.length, 1)) * 20;
+  }
+
+  // Enforce the 30% Safety Floor and 100% Ceiling
   return Math.min(100, Math.max(30, Math.round(score)));
 }
-
 /* =====================================================
     MAIN TECHNICAL AGENT
 ===================================================== */
@@ -87,7 +122,7 @@ export function runTechnicalAgent(
 
     // PHASE 2: SCORING
     const scoredCandidates = candidates.map(sku => {
-      const specScore = calculateIndustrialMatch(item.technicalSpecs, sku.specification);
+      const specScore = calculateIndustrialMatch(item.technicalSpecs, sku.specification, item.name, sku.productCategory, sku.productName);
       const stockWeight = sku.availableQuantity >= item.quantity ? AVAILABILITY.FULL : 
                          sku.availableQuantity > 0 ? AVAILABILITY.PARTIAL : AVAILABILITY.ZERO;
       

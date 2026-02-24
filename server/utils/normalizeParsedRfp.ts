@@ -107,7 +107,11 @@ export function normalizeParsedRfp(raw: any): ParsedRfpData {
   // 5. METADATA MAPPING (Guards against undefined to prevent UI crash)
   const bidDetails = raw.bid_details ?? {};
   const bidEndDate = bidDetails.bid_end_date_time ?? bidDetails.bid_end_date ?? "N/A";
-  const isEmdRequired = bidDetails.emd_required === "Yes" || bidDetails.emd_required === true || bidDetails.emd_detail_required === "Yes";
+  const extractedEmdAmount = Number(bidDetails.emdAmount) || 0;
+  const extractedEpbgAmount = Number(bidDetails.epbgAmount) || 0;
+  const isEmdRequired = bidDetails.emd_required === "Yes" || bidDetails.emd_required === true || bidDetails.emd_detail_required === "Yes"||extractedEmdAmount > 0;
+  const isEpbgRequired = bidDetails.epbg_required === "Yes" || bidDetails.epbg_required === true || bidDetails.epbg_detail_required === "Yes"||extractedEpbgAmount > 0;
+  
   const mandatoryDocuments =
     bidDetails.document_required_from_seller ??
     bidDetails.documents_required_from_seller ??
@@ -130,6 +134,8 @@ export function normalizeParsedRfp(raw: any): ParsedRfpData {
       totalQuantity: Number(bidDetails.total_quantity ?? raw.item_details?.total_quantity) || 0,
       officeName: bidDetails.office_name,
       isBidClosed: isBidClosed(bidEndDate),
+      emdAmount: extractedEmdAmount,
+      epbgAmount: extractedEpbgAmount
     },
     products,
     mandatoryDocuments,

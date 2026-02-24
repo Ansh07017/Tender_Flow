@@ -100,6 +100,7 @@ STRICT RULES:
 6. Buyer added terms: Provide ONLY the first 10 most critical terms. Summarize each to under 100 characters. DO NOT include full legal text.
 7. If an address contains 'Location not visible due to security reasons', keep that exact phrase in the JSON.
 8. If an address contains partial asterisks, extract only the readable City/State names.
+9. "When extracting financial requirements, explicitly look for the 'EMD Detail' or 'ईएमडी विवरण' tables. Map the value next to 'ईएमडी राशि/EMD Amount' to the integer field 'emdAmount'. Do the same for 'ePBG Detail'. If none is found, return 0."
 
 DOCUMENT CONTENT:
 ${content.substring(0, 30000)}

@@ -123,6 +123,16 @@ function calculateSecurityDeposit(rfp: ParsedRfpData, type: 'epbg' | 'emd', base
   const status = rfp.financialConditions?.[type];
   if (status === "Not Required" || status === "No") return 0;
   
+  // RESTORED OVERRIDE: Exact ₹ amount for EMD
+  if (type === 'emd' && rfp.metadata.emdAmount && rfp.metadata.emdAmount > 0) {
+    return rfp.metadata.emdAmount;
+  }
+
+  // RESTORED OVERRIDE: Exact ₹ amount for ePBG
+  if (type === 'epbg' && rfp.metadata.epbgAmount && rfp.metadata.epbgAmount > 0) {
+    return rfp.metadata.epbgAmount;
+  }
+  
   // Dynamic percentages from RFP metadata or industry defaults
   const epbgDefault = 3; 
   const emdDefault = 2;

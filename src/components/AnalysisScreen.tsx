@@ -454,6 +454,7 @@ export const AnalysisScreen: React.FC<AnalysisScreenProps> = ({ rfp, config, onB
                         <div className="text-emerald-500"><CheckCircle2 className="w-4 h-4" /></div>
                         <div>
                           <p className="text-[10px] font-black text-slate-300 uppercase tracking-wider">SKU: {analysis.selectedSku?.skuId || 'No Match'}</p>
+                          <p className="text-[10px] font-black text-slate-300 uppercase tracking-wider">SKU: {analysis.selectedSku?.productName|| 'No Match'}</p>
                           <p className="text-[9px] text-slate-400 font-bold uppercase">Stock: {analysis.selectedSku?.availableQuantity || 0}</p>
                         </div>
                       </div>
@@ -497,6 +498,7 @@ export const AnalysisScreen: React.FC<AnalysisScreenProps> = ({ rfp, config, onB
                                 <tr key={rIdx} className="border-t border-slate-800/50">
                                   <td className="p-2 pl-4 text-slate-400 font-bold">#{rIdx + 1}</td>
                                   <td className="p-2 text-slate-200">{rec.skuId}</td>
+                                  <td className="p-2 text-slate-200">{rec.productName}</td>
                                   <td className="p-2 pr-4 text-right font-bold text-emerald-400">{rec.matchPercentage}%</td>
                                 </tr>
                               ))}
